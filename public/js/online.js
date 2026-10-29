@@ -6,6 +6,7 @@ import { namesList } from '/shared/words.js';
 import { prefs, savePrefs } from './prefs.js';
 import { onlineSettingsHTML } from './settings.js';
 import * as ui from './ui.js';
+import * as snakes from './snakes.js';
 const { $, esc } = ui;
 
 const KEY = 'kheeladi-sps-online-v1';
@@ -72,7 +73,7 @@ function send(obj){
   setConn(true);
   return false;
 }
-function setConn(down){ $('#conn').hidden = !(down && session && ['lobby', 'play', 'end'].includes(ui.screen)); }
+function setConn(down){ $('#conn').hidden = !(down && session && ['lobby', 'play', 'snakes', 'end'].includes(ui.screen)); }
 // Phones drop sockets when the screen locks or the signal goes: whenever the page comes back, ask the
 // server for a pong, and reconnect if none comes within three seconds.
 let pongTimer = 0;
@@ -125,6 +126,7 @@ function endSession(message){
   session = null; saveSession(); state = null;
   clearTimeout(retryTimer); clearTimeout(view.overTimer);
   view.anim++; view.animating = false; view.tableKey = ''; view.fresh = true;
+  snakes.leaveOnline();
   try { ws && ws.close(); } catch (e) {}
   ws = null;
   $('#conn').hidden = true;
@@ -159,10 +161,10 @@ function nameFrom(input, errEl){
   prefs.name = name; savePrefs();
   return name;
 }
-export function host(){
+export function host(game){
   $('#online-error').textContent = '';
   const name = nameFrom($('#my-name'), '#online-error');
-  if (name) startJoin('create', {t: 'create', name});
+  if (name) startJoin('create', {t: 'create', name, game});
 }
 export function joinByCode(){
   $('#online-error').textContent = '';
@@ -187,7 +189,7 @@ export async function openInvite(code){
     const d = await r.json();
     if (d.host) {
       const people = `${d.players} ${d.players === 1 ? 'player' : 'players'} here`;
-      $('#join-sub').textContent = `${d.host} is hosting · ${people}${d.phase === 'lobby' ? '' : '. A match is on, so you’ll watch until the next one.'}`;
+      $('#join-sub').textContent = `${d.host} is hosting ${d.game === 'snakes' ? 'Snakes & Ladders' : 'Stone Paper Scissors'} · ${people}${d.phase === 'lobby' ? '' : '. A game is on, so you’ll watch until the next one.'}`;
     }
   } catch (e) {}
 }
@@ -214,6 +216,12 @@ function apply(s){
     return;
   }
   const m = s.match;
+  if (m.game === 'snakes') {
+    const fresh = view.fresh || m.id !== view.matchId;
+    view.matchId = m.id; view.fresh = false; view.tableKey = '';
+    snakes.renderOnline(s, {send, serverNow, isHost}, fresh);
+    return;
+  }
   if (view.fresh || m.id !== view.matchId) {
     view.shown = view.fresh && m.last ? m.last.round : 0;
     view.matchId = m.id; view.tableKey = ''; view.displayed = ''; view.endShown = 0; view.resultAt = 0;
@@ -418,7 +426,7 @@ function renderLobby(){
 function syncPrefToggles(){ document.querySelectorAll('[data-pref]').forEach(i => { i.checked = prefs[i.dataset.pref]; }); }
 export function setSetting(key, val){
   if (!state || !isHost()) return;
-  const settings = {...state.settings, [key]: key === 'mode' ? val : +val};
+  const settings = {...state.settings, [key]: key === 'mode' || key === 'game' ? val : +val};
   state.settings = settings;
   renderLobby();
   send({t: 'settings', settings});

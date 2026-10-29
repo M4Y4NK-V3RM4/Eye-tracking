@@ -61,7 +61,7 @@ export function paintIcons(root = document){ $$('[data-icon]', root).forEach(n =
 
 // ---------- Screens, sheets, toasts ----------
 export let screen = 'home';
-const SCREENS = ['home', 'join', 'lobby', 'play', 'end'];
+const SCREENS = ['home', 'join', 'lobby', 'play', 'snakes', 'end'];
 export function show(name){
   screen = name;
   for (const s of SCREENS) $('#screen-' + s).hidden = s !== name;
@@ -233,10 +233,11 @@ export function renderTop(M){
   renderSoundButton();
 }
 export function renderSoundButton(){
-  const b = $('#btn-sound');
-  b.innerHTML = prefs.sound ? ICON.soundOn : ICON.soundOff;
-  b.setAttribute('aria-pressed', prefs.sound);
-  b.setAttribute('aria-label', prefs.sound ? 'Sound is on' : 'Sound is off');
+  for (const b of $$('#btn-sound, .sound-btn')) {
+    b.innerHTML = prefs.sound ? ICON.soundOn : ICON.soundOff;
+    b.setAttribute('aria-pressed', prefs.sound);
+    b.setAttribute('aria-label', prefs.sound ? 'Sound is on' : 'Sound is off');
+  }
 }
 const nameOf = (M, id) => M.seats.find(p => p.id === id).name;
 const names = (M, ids) => namesList(ids.map(id => nameOf(M, id)));
@@ -390,6 +391,7 @@ export function renderEnd(M, opts){
   $('#btn-copy').textContent = 'Copy the result';
   $('#end-actions').innerHTML = opts.actionsHTML;
   $('#end-actions').classList.toggle('single', !!opts.single);
+  document.body.dataset.end = 'sps';
   paintIcons($('#end-actions'));
   if (screen !== 'end') { show('end'); window.scrollTo(0, 0); }
   else if (!opts.keepScroll) window.scrollTo(0, 0);

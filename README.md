@@ -1,16 +1,23 @@
-# Stone Paper Scissors
+# Kheeladi games: Stone Paper Scissors, and Snakes & Ladders reversed
 
-Kheeladi's Stone Paper Scissors for phones and the web. Two ways to play:
+Two Kheeladi games for phones and the web, each playable two ways:
 
 - **Online with friends.** One person hosts and gets a four-letter room code and a QR code. Everyone else scans
   it, opens the link, or types the code on their own phone. Two to six people play; anyone else who joins watches
-  and takes a seat at the next match.
-- **On this phone.** Play Kheeladi's bots (Easy, Fair or Sharp), or pass one phone around with secret picks. Two to
-  eight seats. Works without the server once the page has loaded.
+  and takes a seat at the next game. The host picks the game in the lobby.
+- **On this phone.** Play Kheeladi's bots (Easy, Fair or Sharp). Stone Paper Scissors also does pass-and-play with
+  secret picks, two to eight seats. Works without the server once the page has loaded.
 
-Rules: two players play one throw or best of 3, 5 or 7. Groups play **points** (1 point for every player you beat,
-most points after 3 to 10 rounds, a tie goes to a throw-off) or **knockout** (a throw counts when exactly two
-shapes show; the losing shape is out; last one standing wins).
+**Stone Paper Scissors.** Two players play one throw or best of 3, 5 or 7. Groups play **points** (1 point for
+every player you beat, most points after 3 to 10 rounds, a tie goes to a throw-off) or **knockout** (a throw counts
+when exactly two shapes show; the losing shape is out; last one standing wins).
+
+**Snakes & Ladders, reversed.** Everyone starts on 100 and races down to 0, so snakes help (they slide you closer to
+home) and ladders set you back. There is no taking turns: every turn, everyone throws stone, paper or scissors at
+once, and whoever beats the most players rolls two dice (if everyone ties, throw again). The dice are CSS 3D cubes
+that tumble onto the board; pieces hop square by square and ride the snakes along their curves. Any roll that reaches
+0 wins; no exact roll is needed. You can throw your next shape while the pieces are still moving, and the server
+opens the next throw the moment the last move has played out, so a game takes about a minute.
 
 ## How it works
 
@@ -41,10 +48,10 @@ phone ──WebSocket /ws──┘      ├─ serves public/ and shared/ (the w
 | --- | --- |
 | `server/index.js` | HTTP and WebSocket server, static files, `/qr/CODE.svg`, `/api/rooms/CODE`, `/healthz` |
 | `server/rooms.js` | Rooms: joining, seats, the host, picks, reveals, timers, reconnecting |
-| `shared/` | Rules, match engine, bots and wording, used by the server and the browser |
-| `public/` | The web app: `index.html`, `css/app.css`, `js/` (`online.js`, `local.js`, `ui.js`, `app.js`) |
+| `shared/` | Rules, match engines (`engine.js` for Stone Paper Scissors, `snakes.js` for Snakes & Ladders), bots and wording, used by the server and the browser |
+| `public/` | The web app: `index.html`, `css/app.css`, `js/` (`online.js`, `local.js`, `snakes.js`, `ui.js`, `app.js`) |
 | `test/` | `node --test`: the engine, and the server over real WebSockets |
-| `e2e/multiplayer.mjs` | Several phone browsers host, join and play a full match (Playwright) |
+| `e2e/multiplayer.mjs`, `e2e/snakes.mjs` | Several phone browsers host, join and play each game to the end (Playwright) |
 
 ## Run it
 

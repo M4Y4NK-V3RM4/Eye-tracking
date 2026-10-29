@@ -196,3 +196,33 @@ test('the server serves the app, the shared rules, QR codes and a health check',
   assert.equal((await fetch(env.base + '/api/rooms/KXQP')).status, 404);
   assert.deepEqual(Object.keys(await (await fetch(env.base + '/healthz')).json()), ['ok', 'rooms', 'people', 'connected']);
 });
+
+test('Snakes & Ladders online: the throw winner rolls, and the next throw waits for the moves to play out', async t => {
+  const env = await boot({snakesPause: 0}); t.after(() => env.app.close());
+  const host = phone(env.ws); await host.open;
+  host.send({t: 'create', name: 'Mayank', game: 'snakes'});
+  await host.until(s => s.phase === 'lobby');
+  assert.equal(host.state.settings.game, 'snakes');
+  assert.equal((await (await fetch(`${env.base}/api/rooms/${host.state.code}`)).json()).game, 'snakes');
+  const guest = phone(env.ws); await guest.open;
+  guest.send({t: 'join', code: host.state.code, name: 'Priya'});
+  await host.until(s => s.players.length === 2);
+  host.send({t: 'start'});
+  const s0 = await guest.until(s => s.phase === 'playing');
+  assert.equal(s0.match.game, 'snakes');
+  assert.deepEqual(s0.match.seats.map(x => x.pos), [100, 100]);
+  host.send({t: 'pick', round: 1, move: 1});
+  guest.send({t: 'pick', round: 1, move: 0});
+  const s1 = await guest.until(s => s.match.last);
+  const roll = s1.match.last.rolls[0];
+  assert.equal(roll.id, host.joined.pid);
+  assert.ok(roll.total >= 2 && roll.total <= 12);
+  assert.equal(s1.match.seats.find(x => x.id === host.joined.pid).pos, roll.to);
+  assert.ok(s1.match.notBefore - s1.now >= 1500, 'the next reveal waits for the dice and the moves');
+  // both throw at once for round 2: the reveal still waits until the animation has had its time
+  host.send({t: 'pick', round: 2, move: 2});
+  guest.send({t: 'pick', round: 2, move: 2});
+  const s2 = await guest.until(s => s.match.last.round === 2, 6000);
+  assert.ok(s2.now >= s1.match.notBefore - 50);
+  host.close(); guest.close();
+});
