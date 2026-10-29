@@ -5,8 +5,9 @@
 import { beats, VERBS, rint } from './rules.js';
 
 export const START = 100;
-export const SNAKES = [[98, 73], [91, 69], [84, 57], [66, 41], [59, 32], [47, 22], [35, 13], [27, 6]];   // head -> tail
-export const LADDERS = [[78, 95], [52, 74], [39, 61], [17, 38], [8, 29]];                            // foot -> top
+// The classic board from Mayank's photo: 11 snakes and 11 ladders, square for square.
+export const SNAKES = [[98, 14], [94, 55], [88, 32], [82, 44], [78, 22], [68, 3], [66, 35], [59, 19], [49, 9], [37, 13], [30, 6]];   // head -> tail
+export const LADDERS = [[2, 21], [11, 48], [17, 36], [23, 85], [31, 71], [39, 80], [46, 67], [53, 92], [62, 83], [65, 95], [74, 93]]; // foot -> top
 const JUMPS = new Map([...SNAKES, ...LADDERS]);
 
 // How long each part of a turn takes on screen, in ms. The server waits this long before the next

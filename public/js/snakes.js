@@ -10,7 +10,65 @@ const { $, $$, esc } = ui;
 
 const SEAT_COLORS = ['#137eff', '#d54141', '#1a8f4a', '#c46a00', '#7a4fd6', '#0b7f86'];
 const BOT_NAMES = ['Laddoo', 'Jalebi', 'Barfi', 'Kaju', 'Peda'];
-const SNAKE_COLORS = [['#2f9e57', '#1b6b38'], ['#7a4fd6', '#4f2fa1'], ['#e07b1f', '#a3520c'], ['#d54141', '#962626'], ['#0b8f8f', '#06605f'], ['#137eff', '#0b54c2'], ['#c43a7d', '#8a2155'], ['#6f9e1a', '#4a6b0d']];
+// Each snake's body and colour, traced from the photo of the classic board: points between the head
+// and the tail, in the board's 1000 x 1100 space. The head and the tail tip sit on their squares' centres.
+const SNAKE_ART = {
+  98: {c: ['#2f9e57', '#1b6b38'], via: [[313, 82], [359, 152], [377, 240], [380, 333], [389, 421], [423, 491], [469, 553], [512, 612], [545, 678], [562, 749], [585, 813]]},
+  94: {c: ['#e07b1f', '#a3520c'], via: [[634, 76], [620, 129], [610, 187], [616, 246], [634, 304], [644, 357], [635, 404], [600, 427]]},
+  88: {c: ['#137eff', '#0b54c2'], via: [[786, 158], [800, 216], [806, 287], [832, 347], [881, 394], [915, 444], [927, 503], [920, 561], [899, 608]]},
+  82: {c: ['#7a4fd6', '#4f2fa1'], via: [[165, 181], [183, 228], [209, 275], [225, 324], [225, 371], [213, 418], [218, 464], [248, 497], [292, 520], [330, 540]]},
+  78: {c: ['#d54141', '#962626'], via: [[284, 283], [301, 324], [313, 371], [312, 418], [294, 462], [257, 491], [229, 523], [227, 570], [236, 616], [229, 663], [205, 698]]},
+  68: {c: ['#ef6a4f', '#b2412b'], via: [[707, 415], [685, 464], [667, 520], [662, 579], [666, 637], [658, 696], [628, 743], [577, 766], [510, 785], [452, 815], [394, 850], [334, 895]]},
+  66: {c: ['#0b8f8f', '#06605f'], via: [[496, 368], [470, 394], [460, 441], [477, 485], [512, 520], [547, 556], [579, 593], [591, 632]]},
+  59: {c: ['#8a5a3c', '#5c3a24'], via: [[127, 488], [111, 523], [100, 570], [98, 628], [93, 696], [88, 754], [100, 801], [123, 832]]},
+  49: {c: ['#c43a7d', '#8a2155'], via: [[811, 581], [783, 616], [766, 663], [771, 722], [795, 768], [823, 815], [844, 862], [846, 909]]},
+  37: {c: ['#9e2a3a', '#6b1724'], via: [[406, 708], [440, 733], [475, 768], [504, 815], [533, 860], [568, 897], [614, 923], [672, 930], [718, 918], [744, 892]]},
+  30: {c: ['#2f4fa8', '#1d3270'], via: [[892, 731], [837, 740], [790, 754], [756, 780], [738, 820], [756, 860], [800, 883], [817, 918], [800, 953], [753, 977], [684, 988], [605, 988]]}
+};
+const SPARE_COLORS = [['#6f9e1a', '#4a6b0d'], ['#c46a00', '#8a4a00']];
+const f1 = v => Math.round(v * 10) / 10;
+// A smooth curve through the points (Catmull-Rom), as cubic Bezier segments [p0, c1, c2, p1].
+function curve(pts){
+  const segs = [];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[Math.max(0, i - 1)], b = pts[i], c = pts[i + 1], d = pts[Math.min(pts.length - 1, i + 2)];
+    segs.push([b, [b[0] + (c[0] - a[0]) / 6, b[1] + (c[1] - a[1]) / 6], [c[0] - (d[0] - b[0]) / 6, c[1] - (d[1] - b[1]) / 6], c]);
+  }
+  return segs;
+}
+const bez = ([p, c1, c2, q], t) => { const u = 1 - t; return [0, 1].map(k => u * u * u * p[k] + 3 * u * u * t * c1[k] + 3 * u * t * t * c2[k] + t * t * t * q[k]); };
+// A snake: a body that tapers to its tail, a head with eyes and a tongue, and the line a piece slides along.
+function snakeSVG(head, tail, i){
+  const art = SNAKE_ART[head], [hx, hy] = cellXY(head), [tx, ty] = cellXY(tail);
+  const via = art ? art.via : [[(hx + tx) / 2 + (ty - hy) * .15, (hy + ty) / 2 - (tx - hx) * .15]];
+  const [body, edge] = art ? art.c : SPARE_COLORS[i % SPARE_COLORS.length];
+  const segs = curve([[hx, hy], ...via, [tx, ty]]);
+  const d = `M${hx} ${hy}` + segs.map(([, a, b, q]) => `C${f1(a[0])} ${f1(a[1])} ${f1(b[0])} ${f1(b[1])} ${q[0]} ${q[1]}`).join('');
+  const pts = [[hx, hy]];
+  for (const sg of segs) for (let k = 1; k <= 14; k++) pts.push(bez(sg, k / 14));
+  const at = [0];
+  for (let k = 1; k < pts.length; k++) at.push(at[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
+  const total = at[at.length - 1], left = [], right = [];
+  pts.forEach((p, k) => {
+    const a = pts[Math.max(0, k - 1)], b = pts[Math.min(pts.length - 1, k + 1)], l = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
+    const nx = -(b[1] - a[1]) / l, ny = (b[0] - a[0]) / l, t = at[k] / total;
+    const w = 2.5 + 12.5 * (t < .45 ? 1 : 1 - ((t - .45) / .55) ** 1.5);
+    left.push(`${f1(p[0] + nx * w)},${f1(p[1] + ny * w)}`); right.unshift(`${f1(p[0] - nx * w)},${f1(p[1] - ny * w)}`);
+  });
+  const spots = pts.filter((p, k) => at[k] / total < .8).map(p => `${f1(p[0])},${f1(p[1])}`).join(' ');
+  // the head looks away from the body, along the first stretch of it
+  const [qx, qy] = via[0], ql = Math.hypot(qx - hx, qy - hy) || 1, fx = (hx - qx) / ql, fy = (hy - qy) / ql;
+  const ang = Math.atan2(fy, fx) * 180 / Math.PI, ox = -fy * 8, oy = fx * 8, ex = hx + fx * 7, ey = hy + fy * 7;
+  const tip = [hx + fx * 34, hy + fy * 34];
+  return `<g class="snake">
+      <polygon points="${left.join(' ')} ${right.join(' ')}" fill="${body}" stroke="${edge}" stroke-width="3.5" stroke-linejoin="round"/>
+      <polyline class="spots" points="${spots}" stroke-width="6" stroke-dasharray="0.1 19"/>
+      <path class="tongue" d="M${f1(hx + fx * 20)} ${f1(hy + fy * 20)}L${f1(tip[0])} ${f1(tip[1])}M${f1(tip[0])} ${f1(tip[1])}l${f1(fx * 7 + ox * .6)} ${f1(fy * 7 + oy * .6)}M${f1(tip[0])} ${f1(tip[1])}l${f1(fx * 7 - ox * .6)} ${f1(fy * 7 - oy * .6)}"/>
+      <ellipse cx="${hx}" cy="${hy}" rx="24" ry="19" transform="rotate(${f1(ang)} ${hx} ${hy})" fill="${body}" stroke="${edge}" stroke-width="3.5"/>
+      <circle cx="${f1(ex + ox)}" cy="${f1(ey + oy)}" r="5.5" fill="#fff"/><circle cx="${f1(ex - ox)}" cy="${f1(ey - oy)}" r="5.5" fill="#fff"/>
+      <circle cx="${f1(ex + ox + fx * 1.5)}" cy="${f1(ey + oy + fy * 1.5)}" r="2.8" fill="#141414"/><circle cx="${f1(ex - ox + fx * 1.5)}" cy="${f1(ey - oy + fy * 1.5)}" r="2.8" fill="#141414"/>
+      <path id="jump-${head}" d="${d}" fill="none" stroke="none"/></g>`;
+}
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const quick = () => ui.reduceMotion.matches;
 
@@ -36,23 +94,7 @@ function buildBoard(){
       <line class="rail" x1="${x1 + nx}" y1="${y1 + ny}" x2="${x2 + nx}" y2="${y2 + ny}"/><line class="rail" x1="${x1 - nx}" y1="${y1 - ny}" x2="${x2 - nx}" y2="${y2 - ny}"/>
       <path id="jump-${foot}" d="M${x1} ${y1}L${x2} ${y2}" fill="none" stroke="none"/></g>`;
   }
-  SNAKES.forEach(([head, tail], i) => {
-    const [hx, hy] = cellXY(head), [tx, ty] = cellXY(tail);
-    const dx = tx - hx, dy = ty - hy, len = Math.hypot(dx, dy), px = -dy / len, py = dx / len;
-    const amp = Math.min(95, len * .24) * (i % 2 ? 1 : -1);
-    const c1 = [hx + dx * .3 + px * amp, hy + dy * .3 + py * amp], c2 = [hx + dx * .7 - px * amp, hy + dy * .7 - py * amp];
-    const d = `M${hx} ${hy}C${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${tx} ${ty}`;
-    const [body, edge] = SNAKE_COLORS[i % SNAKE_COLORS.length];
-    const ul = Math.hypot(c1[0] - hx, c1[1] - hy), ux = (c1[0] - hx) / ul, uy = (c1[1] - hy) / ul;
-    const ex = hx - ux * 4, ey = hy - uy * 4, ox = -uy * 9, oy = ux * 9;
-    art += `<g class="snake">
-      <path d="${d}" stroke="${edge}" stroke-width="32"/><path d="${d}" stroke="${body}" stroke-width="25"/>
-      <path d="${d}" class="spots" stroke-width="9" stroke-dasharray="1 24"/>
-      <circle cx="${hx}" cy="${hy}" r="23" fill="${body}" stroke="${edge}" stroke-width="4"/>
-      <circle cx="${ex + ox}" cy="${ey + oy}" r="6.5" fill="#fff"/><circle cx="${ex - ox}" cy="${ey - oy}" r="6.5" fill="#fff"/>
-      <circle cx="${ex + ox - ux * 1.5}" cy="${ey + oy - uy * 1.5}" r="3.2" fill="#141414"/><circle cx="${ex - ox - ux * 1.5}" cy="${ey - oy - uy * 1.5}" r="3.2" fill="#141414"/>
-      <path id="jump-${head}" d="${d}" fill="none" stroke="none"/></g>`;
-  });
+  SNAKES.forEach(([head, tail], i) => { art += snakeSVG(head, tail, i); });
   $('#sl-art').innerHTML = art;
   for (const [a] of [...SNAKES, ...LADDERS]) paths.set(a, document.getElementById('jump-' + a));
   $('#sl-dice').innerHTML = [0, 1].map(() => `<div class="die"><div class="shadow"></div><div class="cube">${dieFaces()}</div></div>`).join('');
