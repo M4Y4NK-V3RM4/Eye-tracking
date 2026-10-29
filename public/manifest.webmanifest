@@ -1,0 +1,9 @@
+{
+  "name": "Stone Paper Scissors · Kheeladi",
+  "short_name": "Stone Paper Scissors",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f6efe7",
+  "theme_color": "#137eff",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}

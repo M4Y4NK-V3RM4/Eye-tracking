@@ -1,0 +1,19 @@
+# One free Render web service runs everything: the web app, the WebSocket rooms and the QR codes.
+# Deploy: Render dashboard > New > Blueprint > pick this repo. See README.md.
+services:
+  - type: web
+    name: stone-paper-scissors
+    runtime: node
+    plan: free
+    region: singapore            # closest Render region to India
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit    # redeploys after each push to main
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TRUST_PROXY           # Render's proxy sets X-Forwarded-For; the rate limits use it
+        value: "1"
+      - key: KEEP_AWAKE            # no one-minute wake-up: uses about 744 of the 750 free hours a month
+        value: "1"
