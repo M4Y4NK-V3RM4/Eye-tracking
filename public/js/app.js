@@ -61,8 +61,7 @@ const actions = {
   'o-rematch': () => online.rematch(),
   'o-lobby': () => online.toLobby(),
   'o-results': () => online.results(),
-  'o-end-ask': () => online.endAsk(),
-  skip: () => online.skip()
+  'o-end-ask': () => online.endAsk()
 };
 
 document.addEventListener('click', e => {

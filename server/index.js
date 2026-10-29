@@ -204,6 +204,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   const app = createServer();
   const port = await app.listen(Number(process.env.PORT) || 8080, '0.0.0.0');
   console.log(`Stone Paper Scissors is up on port ${port}`);
+  // Render's free plan sleeps after 15 minutes without visitors, and waking takes about a minute.
+  // KEEP_AWAKE=1 visits our own public address every 10 minutes so the first visit is instant.
+  if (process.env.KEEP_AWAKE === '1' && process.env.RENDER_EXTERNAL_URL) {
+    setInterval(() => { fetch(process.env.RENDER_EXTERNAL_URL + '/healthz').catch(() => {}); }, 10 * 60e3).unref();
+  }
   const stop = () => { app.close().then(() => process.exit(0)); setTimeout(() => process.exit(0), 3000).unref(); };
   process.on('SIGTERM', stop);
   process.on('SIGINT', stop);

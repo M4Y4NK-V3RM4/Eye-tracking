@@ -397,3 +397,6 @@ h1,h2,h3,p{margin:0}
 .chips.three{grid-template-columns:repeat(3,minmax(0,1fr))}
 .picks.has-chosen .pick.chosen{transform:translateY(-5px) scale(1.03)}
 .cta:disabled{opacity:.42;cursor:default;transform:none}
+.timebar{height:6px;border-radius:999px;background:var(--surface-2);overflow:hidden;margin-top:-2px}
+.timebar i{display:block;height:100%;border-radius:inherit;background:var(--c-blue);transform-origin:left center;transform:scaleX(1)}
+.timebar.low i{background:var(--c-red)}

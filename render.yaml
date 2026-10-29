@@ -15,3 +15,5 @@ services:
         value: production
       - key: TRUST_PROXY           # Render's proxy sets X-Forwarded-For; the rate limits use it
         value: "1"
+      - key: KEEP_AWAKE            # no one-minute wake-up: uses about 744 of the 750 free hours a month
+        value: "1"

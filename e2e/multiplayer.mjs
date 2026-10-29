@@ -12,7 +12,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const shots = process.env.SHOTS || path.join(here, 'shots');
 mkdirSync(shots, {recursive: true});
 
-const app = createServer({roomOptions: {awayGrace: 4000, hostGrace: 6000}, heartbeatMs: 1500});
+const app = createServer({roomOptions: {hostGrace: 6000}, heartbeatMs: 1500});
 const port = await app.listen(0, '127.0.0.1');
 const base = `http://127.0.0.1:${port}`;
 const browser = await chromium.launch();
@@ -65,7 +65,9 @@ try {
   await waitText(host, '#lobby-count', '3 of 6');
   check(true, 'three phones in the lobby');
   await host.click('[data-set="rounds"][data-val="3"]');
+  await host.click('[data-set="timer"][data-val="10"]');
   await waitText(priya, '#lobby-settings', 'Points, 3 rounds');
+  await waitText(priya, '#lobby-settings', '10 seconds to throw');
   check(true, 'the host’s settings reach everyone');
   await shot(host, '04-lobby-host.png');
   await priya.screenshot({path: path.join(shots, '05-lobby-guest-full.png'), fullPage: true});
@@ -156,19 +158,26 @@ try {
   await waitText(host, '#roster', 'Watching');
   check(true, 'the seventh person watches');
   await host.click('[data-set="mode"][data-val="knockout"]');
+  await host.click('[data-set="timer"][data-val="3"]');
   await host.click('[data-act="o-start"]');
   for (const p of six) await p.waitForSelector('#screen-play:not([hidden])');
+  await host.waitForTimeout(300);
   await shot(host, '12-six-players.png');
-  for (let round = 0; round < 40; round++) {
+  // Zoya never throws: the clock throws for her and the table never waits.
+  const t0 = Date.now();
+  let rounds = 0;
+  for (let round = 0; round < 60; round++) {
     if (await visible(host, '#screen-end')) break;
     for (const [i, p] of six.entries()) {
+      if (p.name === 'Zoya') continue;
       const b = p.locator('#tray .pick:not([disabled])');
       if (await b.count() && !(await p.locator('#tray .picks.has-chosen').count())) await b.nth(Math.floor(Math.random() * 3)).click().catch(() => {});
     }
-    await host.waitForTimeout(2200);
+    await host.waitForTimeout(700);
   }
   await host.waitForSelector('#screen-end:not([hidden])', {timeout: 20000});
-  check(true, 'six phones played a knockout to the end');
+  rounds = await host.evaluate(() => document.querySelector('#end-sub').textContent);
+  check(true, `six phones played a knockout to the end in ${((Date.now() - t0) / 1000).toFixed(0)} s, with one phone never throwing (${rounds.trim()})`);
   await shot(extra, '13-watcher-end.png');
 
   // 10. One phone still plays bots offline

@@ -89,7 +89,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) wake
 window.addEventListener('online', wake);
 window.addEventListener('pageshow', wake);
 setInterval(() => { if (session && ws && ws.readyState === 1 && Date.now() - lastMsg > 35000) reconnectNow(); }, 5000);
-setInterval(tick, 1000);
+setInterval(tick, 250);
 
 function onMessage(msg){
   switch (msg.t) {
@@ -268,7 +268,7 @@ function renderPlay(){
   }
   ui.renderSeats(M); band(M); ui.renderTop(M); renderTray(M, asResult);
   if (s.phase === 'over' && !view.overTimer && view.endShown !== m.id) {
-    view.overTimer = setTimeout(() => { view.overTimer = 0; if (state && state.phase === 'over') showEnd(); }, 1900);
+    view.overTimer = setTimeout(() => { view.overTimer = 0; if (state && state.phase === 'over') showEnd(); }, 1200);
   }
 }
 function band(M){
@@ -285,17 +285,35 @@ function band(M){
   else if (m.myPick != null && pending.length && pending.length <= 3) wait = 'Waiting for ' + namesList(pending.map(x => x.name));
   ui.renderBand(M, {wait});
 }
-function timerText(){
-  const d = state.match && state.match.deadline;
-  if (!d) return '';
-  const secs = Math.ceil((d - serverNow()) / 1000);
-  return secs > 0 ? `${secs} s left` : 'Time’s up';
+// The round's clock, from the server's time. During the short pause after a reveal it is still full.
+function clock(){
+  const m = state && state.match;
+  if (!m || !m.deadline || !m.pickMs || state.phase !== 'playing') return null;
+  const left = m.deadline - serverNow();
+  return {left, total: m.pickMs, started: left <= m.pickMs};
 }
-const skipReady = () => isHost() && state.phase === 'playing' && !state.match.waiting && serverNow() - state.match.openedAt > 8000;
+function timerText(){
+  const c = clock();
+  if (!c) return '';
+  if (!c.started) return `${Math.round(c.total / 1000)} s to throw`;
+  const secs = Math.ceil(c.left / 1000);
+  return secs > 0 ? `${secs} s` : 'Time’s up';
+}
+// A bar that drains with the clock; CSS runs it, so it stays smooth on slow phones.
+function runTimebar(){
+  const bar = $('#tray .timebar i'), c = clock();
+  if (!bar || !c) return;
+  const left = Math.max(0, c.left), run = Math.min(left, c.total), delay = Math.max(0, left - c.total);
+  bar.style.transition = 'none';
+  bar.style.transform = `scaleX(${run / c.total})`;
+  void bar.offsetWidth;
+  bar.style.transition = `transform ${run}ms linear ${delay}ms`;
+  bar.style.transform = 'scaleX(0)';
+}
 function renderTray(M, asResult){
   const s = state, m = s.match, me = s.you, seat = m.seats.find(x => x.id === me), tray = $('#tray');
   const msg = (b, sub) => `<div class="tray-row"><div class="tray-msg"><b>${esc(b)}</b><span>${esc(sub)}</span></div></div>`;
-  const act = activeSeats(m), others = act.filter(x => x.id !== me && !m.locked.includes(x.id) && !m.sitting.includes(x.id));
+  const bar = clock() ? '<div class="timebar" aria-hidden="true"><i></i></div>' : '';
   let html = '';
   if (s.phase === 'over') {
     html = `<button class="cta wide" type="button" data-act="o-results"><span>See who won</span><span class="arrow">${ui.ICON.arrow}</span></button>`;
@@ -307,26 +325,33 @@ function renderTray(M, asResult){
     html = msg('Waiting for players', 'Too few people are here to play this round.');
     if (isHost()) html += `<button class="btn2" type="button" data-act="o-end-ask">End the match</button>`;
   } else if (asResult) {
-    html = ui.trayHead('Throw again', timerText() || 'Next round') + ui.picksHTML(true);
+    html = ui.trayHead('Throw again', timerText()) + bar + ui.picksHTML(true);
   } else if (m.myPick == null) {
-    html = ui.trayHead('Your throw', timerText()) + ui.picksHTML(true);
+    html = ui.trayHead('Your throw', timerText()) + bar + ui.picksHTML(true);
+  } else if (m.myRandom) {
+    html = ui.trayHead('Too slow', 'A random throw was made') + bar + ui.picksHTML(true, m.myPick);
   } else {
-    html = ui.trayHead(m.myRandom ? 'Time ran out' : 'Locked in', timerText() || 'Tap another to change') + ui.picksHTML(true, m.myPick);
-  }
-  if (others.length && skipReady() && !asResult && s.phase === 'playing') {
-    html += `<div class="tray-actions"><button class="textbtn" type="button" data-act="skip">Don’t wait for ${esc(namesList(others.map(x => x.name)))}</button></div>`;
+    html = ui.trayHead('Locked in', 'Tap another to change') + bar + ui.picksHTML(true, m.myPick);
   }
   tray.innerHTML = html;
-  tray.dataset.skip = others.length && skipReady() ? '1' : '';
+  tray.dataset.ticking = /Your throw|Throw again/.test(html) ? '1' : '';
+  runTimebar();
 }
+let lastBeep = 0;
 function tick(){
   if (!state || state.phase !== 'playing' || ui.screen !== 'play' || view.animating) return;
-  const aside = $('#tray-aside'), t = timerText();
-  if (aside && t) aside.textContent = t;
-  const m = state.match, others = activeSeats(m).filter(x => x.id !== state.you && !m.locked.includes(x.id) && !m.sitting.includes(x.id));
-  const wantSkip = others.length && skipReady() ? '1' : '';
-  if ($('#tray').dataset.skip !== wantSkip || (view.resultAt && view.displayed.startsWith('result') && !showingResult())) renderPlay();
+  const c = clock(), tray = $('#tray');
+  if (c && tray.dataset.ticking) {
+    const aside = $('#tray-aside'), t = timerText();
+    if (aside && aside.textContent !== t) aside.textContent = t;
+    const secs = Math.ceil(c.left / 1000);
+    $('#tray .timebar')?.classList.toggle('low', c.started && secs <= 2);
+    // the last three seconds tick, for anyone who hasn't thrown yet
+    if (c.started && secs > 0 && secs <= 3 && secs !== lastBeep && state.match.myPick == null) { lastBeep = secs; ui.sfx.tick(0); ui.buzz(6); }
+  }
+  if (view.resultAt && view.displayed.startsWith('result') && !showingResult()) renderPlay();
 }
+// The last throw is in: one quick "Shoot!" and every card turns at once.
 async function animate(){
   view.animating = true;
   const token = ++view.anim, s = state, last = s.match.last;
@@ -340,12 +365,14 @@ async function animate(){
   ensureTable(pre);
   ui.resetCards(pre, false);
   ui.renderSeats(pre); ui.renderBand(pre, {wait: 'Everyone has thrown'}); ui.renderTop(pre);
-  $('#tray').innerHTML = ui.trayHead('Stone, paper, scissors…') + ui.picksHTML(false);
   const live = () => token === view.anim && !!state;
-  if (!(await ui.chantAndFlip(live))) { view.animating = false; return; }
+  const quick = ui.reduceMotion.matches;
+  if (!quick) { ui.chantWord('Shoot!', true); ui.sfx.tick(3); ui.buzz(14); await sleep(150); }
+  if (!live()) { ui.hideChant(); view.animating = false; return; }
   const post = vm(s, true);
   ui.renderSeats(post, true); ui.sfx.flip();
-  await sleep(prefs.chant && !ui.reduceMotion.matches ? 480 : 220);
+  await sleep(quick ? 120 : 360);
+  ui.hideChant();
   if (!live()) { view.animating = false; return; }
   ui.renderSeats(post); band(post); ui.renderTop(post); ui.announce(post); ui.outcomeSound(post);
   view.shown = last.round; view.resultAt = Date.now(); view.displayed = 'result:' + last.round;
@@ -401,7 +428,6 @@ export function kick(pid){
   const p = player(pid);
   if (p) ui.confirmSheet(`Remove ${p.name}?`, 'They can join again with the code.', 'Remove', () => send({t: 'kick', pid}));
 }
-export function skip(){ send({t: 'skip', round: state.match.round}); }
 export function rematch(){ send({t: 'start'}); }
 export function toLobby(){ send({t: 'lobby'}); }
 export function leaveAsk(){

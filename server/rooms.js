@@ -2,7 +2,7 @@
 // own phones, and everyone else who joins watches. Throws stay on the server until the reveal.
 import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { createMatch, playRound, nextRound, activeSeats, leaveMatch, seatOf } from '../shared/engine.js';
-import { BEST_OF, ROUNDS, MODES, TIMERS, MAX_ONLINE, isMove, rint } from '../shared/rules.js';
+import { BEST_OF, ROUNDS, MODES, TIMERS, DEFAULT_TIMER, MAX_ONLINE, isMove, rint } from '../shared/rules.js';
 
 export const COLORS = ['#137eff', '#d54141', '#1a8f4a', '#c46a00', '#7a4fd6', '#0b7f86'];
 const CODE_LETTERS = 'BCDFGHJKLMNPQRSTVWXZ';   // no vowels, so codes never spell words; no I/O to misread
@@ -11,9 +11,10 @@ export const CODE_RE = /^[BCDFGHJKLMNPQRSTVWXZ]{4}$/;
 
 const DEFAULTS = {
   maxRooms: 2000,
-  awayGrace: 15000,     // how long a round waits for someone whose phone dropped off
   hostGrace: 30000,     // how long before an absent host hands over
-  revealGrace: 3000,    // the pick timer starts after the reveal animation
+  firstPause: 800,      // the first round's clock starts once the table is on screen
+  resultPause: 1500,    // later rounds: a moment to see the last result first
+  timerMs: null,        // tests only: overrides the room's seconds to throw
   emptyTtl: 15 * 60e3   // a room nobody is connected to is closed after this
 };
 
@@ -71,7 +72,7 @@ export class Room {
     this.opts = opts;
     this.players = new Map();          // id -> {id, token, name, color, role, connected, joinedAt, awaySince, conn}
     this.hostId = null;
-    this.settings = {bestOf: 5, mode: 'points', rounds: 5, timer: 0};
+    this.settings = {bestOf: 5, mode: 'points', rounds: 5, timer: DEFAULT_TIMER};
     this.phase = 'lobby';              // lobby | playing | over
     this.match = null;
     this.matchCount = 0;
@@ -79,6 +80,7 @@ export class Room {
     this.sitting = new Set();          // sitting this round out (away, or the host chose not to wait)
     this.random = new Set();           // thrown at random when the timer ran out
     this.deadline = null;
+    this.pickMs = 0;
     this.roundOpenedAt = 0;
     this.last = null;                  // the last revealed round
     this.notice = null;
@@ -125,7 +127,7 @@ export class Room {
     if (!p) return;
     if (p.conn && p.conn !== conn) p.conn.close(4000, 'Opened on another tab');
     p.conn = conn; p.connected = true; p.awaySince = null;
-    this.clearTimer('away:' + pid); this.clearTimer('host:' + pid);
+    this.clearTimer('host:' + pid);
     if (this.phase === 'playing' && this.picks[pid] == null) this.sitting.delete(pid);
     this.checkReveal();
     this.broadcast();
@@ -135,10 +137,11 @@ export class Room {
     if (!p || p.conn !== conn) return;
     p.conn = null; p.connected = false; p.awaySince = Date.now();
     if (!this.connectedCount()) this.emptySince = Date.now();
-    this.setTimer('away:' + pid, this.opts.awayGrace, () => {
-      if (p.connected || this.phase !== 'playing') return;
-      if (this.picks[pid] == null && activeSeats(this.match).some(s => s.id === pid)) { this.sitting.add(pid); this.checkReveal(); this.broadcast(); }
-    });
+    // Rounds never wait: someone who drops off sits this round out, and can throw again once back.
+    if (this.phase === 'playing' && this.picks[pid] == null && activeSeats(this.match).some(s => s.id === pid)) {
+      this.sitting.add(pid);
+      this.checkReveal();
+    }
     if (pid === this.hostId) this.setTimer('host:' + pid, this.opts.hostGrace, () => {
       if (!p.connected && this.hostId === pid) { this.passHost(); this.broadcast(); }
     });
@@ -160,7 +163,7 @@ export class Room {
       if (this.match.over) this.finish();
     }
     this.players.delete(pid);
-    this.clearTimer('away:' + pid); this.clearTimer('host:' + pid);
+    this.clearTimer('host:' + pid);
     if (p.conn) { p.conn.send({t: why === 'kicked' ? 'kicked' : 'left'}); p.conn.close(1000, why); }
     this.say(why === 'kicked' ? `${p.name} was removed` : `${p.name} left`);
     if (this.hostId === pid) { this.hostId = null; this.passHost(); if (!this.hostId) this.hostId = this.list()[0]?.id || null; }
@@ -259,25 +262,21 @@ export class Room {
     this.match = createMatch({seats: seats.map(p => ({id: p.id, name: p.name, color: p.color})), ...this.settings, id: ++this.matchCount});
     this.phase = 'playing';
     this.last = null;
-    this.openRound();
+    this.openRound(this.opts.firstPause);
     this.broadcast();
     return null;
   }
-  openRound(){
+  // Every round runs on the clock: a short pause, then the seconds to throw. The cards turn as soon as
+  // everyone has thrown, or when time is up.
+  openRound(pause){
     this.picks = {}; this.random = new Set(); this.sitting = new Set();
+    for (const s of activeSeats(this.match)) if (!this.players.get(s.id)?.connected) this.sitting.add(s.id);
     const now = Date.now();
-    for (const s of activeSeats(this.match)) {
-      const p = this.players.get(s.id);
-      if (p && !p.connected && now - p.awaySince >= this.opts.awayGrace) this.sitting.add(s.id);
-    }
     this.roundOpenedAt = now;
-    const secs = this.settings.timer;
-    this.deadline = secs ? now + this.opts.revealGrace + secs * 1000 : null;
-    this.clearTimer('deadline');
-    if (secs) {
-      const round = this.match.round;
-      this.setTimer('deadline', this.deadline - now, () => this.timeUp(round));
-    }
+    this.pickMs = this.opts.timerMs ?? this.settings.timer * 1000;
+    this.deadline = now + pause + this.pickMs;
+    const round = this.match.round;
+    this.setTimer('deadline', this.deadline - now, () => this.timeUp(round));
   }
   timeUp(round){
     if (this.phase !== 'playing' || this.match.round !== round) return;
@@ -306,7 +305,7 @@ export class Room {
     res.random = [...this.random];
     this.last = res;
     if (m.over) this.finish();
-    else { nextRound(m); this.openRound(); }
+    else { nextRound(m); this.openRound(this.opts.resultPause); }
   }
   finish(){
     this.clearRoundTimers();
@@ -335,6 +334,7 @@ export class Room {
         myPick: this.picks[pid] ?? null,
         myRandom: this.random.has(pid),
         deadline: this.deadline,
+        pickMs: this.pickMs,
         openedAt: this.roundOpenedAt,
         waiting: this.waiting(),
         last: this.last,

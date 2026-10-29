@@ -35,13 +35,13 @@ export function localWinHTML(s, n){
 export function onlineSettingsHTML(s, n, isHost, hostName){
   if (!isHost) {
     const rule = n <= 2 ? `<b>${bestOfLabel(s.bestOf)}.</b> ${esc(duelHint(s))}` : `<b>${s.mode === 'points' ? `Points, ${s.rounds} rounds` : 'Knockout'}.</b> ${esc(groupHint(s, n))}`;
-    const timer = s.timer ? `${s.timer} seconds to throw, then a random throw is made for you.` : 'No time limit to throw.';
+    const timer = `${s.timer} seconds to throw each round. Too slow, and a random throw is made for you.`;
     return `<h2 class="label">How to win</h2><div class="ro"><p>${rule}</p><p class="hint">${esc(timer)} ${esc(hostName)} sets the rules.</p></div>`;
   }
   const now = n <= 1 ? '' : n === 2 ? ' · playing now' : '';
   return `<h2 class="label">How to win</h2>
     <div class="field"><p class="hint"><b>Two players</b>${n === 2 ? now : ''}</p>${duelControls(s, true)}<p class="hint">${esc(duelHint(s))}</p></div>
     <div class="field"><p class="hint"><b>Three or more</b>${n >= 3 ? ' · playing now' : ''}</p>${groupControls(s, true)}<p class="hint">${esc(groupHint(s, Math.max(n, 3)))}</p></div>
-    <div class="field"><p class="hint"><b>Time to throw</b></p><div class="chips three" role="group" aria-label="Time to throw">${TIMERS.map(v => chip('timer', v, v ? `${v} seconds` : 'No limit', s.timer === v, true)).join('')}</div>
-    <p class="hint">${s.timer ? 'When time runs out, anyone who hasn’t thrown gets a random throw.' : 'You can skip anyone who keeps the table waiting.'}</p></div>`;
+    <div class="field"><p class="hint"><b>Time to throw</b></p><div class="chips three" role="group" aria-label="Time to throw">${TIMERS.map(v => chip('timer', v, `${v} seconds`, s.timer === v, true)).join('')}</div>
+    <p class="hint">Rounds never wait. The cards turn as soon as everyone has thrown; anyone too slow gets a random throw.</p></div>`;
 }

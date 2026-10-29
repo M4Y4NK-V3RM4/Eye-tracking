@@ -25,10 +25,12 @@ phone ──WebSocket /ws──┘      ├─ serves public/ and shared/ (the w
 - **The server keeps every throw secret.** A phone gets only "Priya has locked in" until the last person has
   thrown; then everyone gets all the throws at once and plays the chant and the flip. You can change your throw
   until then.
-- **Phones drop off and come back.** Each phone holds a private token for its seat, so a locked screen, a tunnel or
-  a refresh rejoins the same seat on its own. A round waits 15 seconds for someone who dropped off, then plays
-  without them (they sit that round out). The host can also stop waiting for anyone after 8 seconds, or set a
-  10 or 20 second timer, after which a random throw is made. If the host is gone for 30 seconds, hosting passes on.
+- **Rounds never wait.** Every round runs on a clock: 5 seconds to throw (the host can pick 3 or 10), after a
+  1.5 second look at the last result. The cards turn the moment the last person throws; anyone still thinking when
+  time is up gets a random throw. A six-phone knockout plays out in about half a minute.
+- **Phones drop off and come back.** A phone that drops off sits the round out at once, and its private token
+  rejoins the same seat on its own when it is back (a locked screen, a tunnel, a refresh). If the host is gone for
+  30 seconds, hosting passes on.
 - **No database.** Rooms live in memory and close 15 minutes after the last person leaves. A server restart or a
   deploy ends the games in progress; players see "That game has ended" and can host a new one.
 - **Limits.** Six players and six watchers per room, 60 messages per phone per 10 seconds, 12 new rooms per IP
@@ -63,13 +65,15 @@ phone.
 
 1. Open <https://dashboard.render.com/blueprints> and sign in with GitHub.
 2. Tap **New Blueprint Instance**, connect GitHub if asked, and give Render access to this repository.
-3. Pick `stone-paper-scissors`, keep the branch `main`, and tap **Deploy Blueprint**.
+3. Pick this repository, keep the branch `main`, and tap **Deploy Blueprint**.
 
 Render builds it in about two minutes and gives a link like `https://stone-paper-scissors.onrender.com`. Every push
 to `main` redeploys it. No card is needed for the free plan; if a free limit is reached, Render pauses the service
 for the rest of the month rather than charging.
 
-The free plan sleeps after 15 minutes without visitors, so the first visit after a quiet spell takes about a minute
-to load. While anyone is in a room, the room's own traffic keeps it awake.
+The free plan sleeps after 15 minutes without visitors, and waking takes about a minute. To avoid that wait,
+`KEEP_AWAKE=1` (set in `render.yaml`) has the server visit its own address every 10 minutes. That keeps one
+service up all month on about 744 of the 750 free hours Render gives each account, so it should be the only free
+service on the account; set `KEEP_AWAKE` to `0` in the service's **Environment** settings to let it sleep.
 
 A custom address such as `sps.kheeladi.com` can be added later in the service's **Settings > Custom Domains**.

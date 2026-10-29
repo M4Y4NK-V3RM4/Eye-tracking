@@ -11,7 +11,8 @@ export const isMove = m => m === 0 || m === 1 || m === 2;
 export const BEST_OF = [1, 3, 5, 7];
 export const ROUNDS = [3, 5, 7, 10];
 export const MODES = ['points', 'knockout'];
-export const TIMERS = [0, 10, 20];          // seconds to pick online; 0 is no limit
+export const TIMERS = [3, 5, 10];           // seconds to throw online; rounds never wait longer
+export const DEFAULT_TIMER = 5;
 export const MAX_ONLINE = 6;
 
 export function rnd(){

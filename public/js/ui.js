@@ -290,7 +290,7 @@ export async function chantAndFlip(isLive){
     const words = ['Stone', 'Paper', 'Scissors', 'Shoot!'];
     for (let i = 0; i < words.length; i++) {
       chantWord(words[i], i === 3); bob(); sfx.tick(i); buzz(i === 3 ? 18 : 8);
-      await wait(i === 3 ? 300 : 360);
+      await wait(i === 3 ? 200 : 240);
       if (!isLive()) { hideChant(); return false; }
     }
   }

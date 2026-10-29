@@ -5,7 +5,7 @@ import WebSocket from 'ws';
 import { createServer } from '../server/index.js';
 
 async function boot(roomOptions = {}){
-  const app = createServer({roomOptions: {awayGrace: 150, hostGrace: 250, revealGrace: 0, ...roomOptions}, heartbeatMs: 60000});
+  const app = createServer({roomOptions: {hostGrace: 250, firstPause: 0, resultPause: 0, timerMs: 60000, ...roomOptions}, heartbeatMs: 60000});
   const port = await app.listen(0, '127.0.0.1');
   return {app, base: `http://127.0.0.1:${port}`, ws: `ws://127.0.0.1:${port}/ws`};
 }
@@ -105,7 +105,7 @@ test('a phone that drops off can come back with its token', async t => {
   host.close(); again.close();
 });
 
-test('a round does not wait for long for someone who has gone away', async t => {
+test('a round never waits for someone who has gone away', async t => {
   const env = await boot(); t.after(() => env.app.close());
   const {host, others} = await room(env, ['A', 'B', 'C']);
   host.send({t: 'start'});
@@ -119,7 +119,24 @@ test('a round does not wait for long for someone who has gone away', async t => 
   host.close(); others[0].close();
 });
 
-test('the host can stop waiting, and the timer throws at random', async t => {
+test('every round runs on the clock: anyone too slow gets a random throw', async t => {
+  const env = await boot({timerMs: 250}); t.after(() => env.app.close());
+  const {host, others, all} = await room(env, ['A', 'B', 'C']);
+  assert.equal(host.state.settings.timer, 5, 'five seconds unless the host picks 3 or 10');
+  host.send({t: 'settings', settings: {timer: 0}});
+  host.send({t: 'settings', settings: {timer: 3}});
+  await host.until(s => s.settings.timer === 3);
+  host.send({t: 'start'});
+  await Promise.all(all.map(p => p.until(s => s.phase === 'playing')));
+  assert.ok(host.state.match.deadline > host.state.now, 'the round has a deadline');
+  host.send({t: 'pick', round: 1, move: 0});
+  const timed = await others[0].until(s => s.match?.last, 3000);
+  assert.deepEqual(timed.match.last.random.sort(), [others[0].joined.pid, others[1].joined.pid].sort());
+  assert.equal(timed.match.last.played.length, 3);
+  all.forEach(p => p.close());
+});
+
+test('the host can still skip anyone who is slow', async t => {
   const env = await boot(); t.after(() => env.app.close());
   const {host, others, all} = await room(env, ['A', 'B', 'C']);
   host.send({t: 'start'});
@@ -127,22 +144,9 @@ test('the host can stop waiting, and the timer throws at random', async t => {
   host.send({t: 'pick', round: 1, move: 0});
   others[0].send({t: 'pick', round: 1, move: 1});
   await host.until(s => s.match?.locked.length === 2);
-  others[1].send({t: 'skip', round: 1});
-  assert.equal(await others[1].nextError(), 'host');
   host.send({t: 'skip', round: 1});
   const s = await host.until(s => s.match?.last);
   assert.deepEqual(s.match.last.sat, [others[1].joined.pid]);
-  host.send({t: 'end'});
-  await host.until(s => s.phase === 'lobby');
-  host.send({t: 'settings', settings: {timer: 10}});
-  await host.until(s => s.settings.timer === 10);
-  env.app.rooms.get(host.state.code).settings.timer = 10;
-  env.app.rooms.get(host.state.code).opts.revealGrace = -9800;   // make the 10 s timer run out in 0.2 s
-  host.send({t: 'start'});
-  await host.until(s => s.phase === 'playing');
-  host.send({t: 'pick', round: 1, move: 0});
-  const timed = await others[0].until(s => s.match?.last, 3000);
-  assert.equal(timed.match.last.random.length, 2);
   all.forEach(p => p.close());
 });
 

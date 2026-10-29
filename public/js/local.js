@@ -155,7 +155,7 @@ function startRound(first){
   M.queue = act.filter(p => p.type === 'person').map(p => p.id);
   ui.resetCards(M, !first);
   ui.renderTop(M); band();
-  if (!M.queue.length) { M.phase = 'auto'; ui.renderSeats(M); renderTray(); const tok = M.token; later(() => tok === M.token && reveal(), 450); return; }
+  if (!M.queue.length) { M.phase = 'auto'; ui.renderSeats(M); renderTray(); const tok = M.token; later(() => tok === M.token && reveal(), 300); return; }
   promptNext();
 }
 function promptNext(){
@@ -173,8 +173,8 @@ export function choose(move){
   if (picks) { picks.classList.add('has-chosen'); $$('.pick', picks).forEach(b => { b.disabled = b !== tile; }); if (tile) tile.classList.add('chosen'); }
   ui.renderSeats(M); band();
   const tok = M.token;
-  if (!M.queue.length) later(() => tok === M.token && reveal(), 280);
-  else later(() => tok === M.token && showHandoff(M.queue[0]), 380);
+  if (!M.queue.length) later(() => tok === M.token && reveal(), 160);
+  else later(() => tok === M.token && showHandoff(M.queue[0]), 300);
 }
 export function changeLast(){
   const id = M.lastPicker;
@@ -201,12 +201,12 @@ async function reveal(){
   }
   M.result = res; M.revealed = true;
   ui.renderSeats(M, true); ui.sfx.flip();
-  await wait(quick ? 220 : 480);
+  await wait(quick ? 180 : 380);
   if (!M || tok !== M.token) return;
   ui.renderSeats(M); band(); ui.renderTop(M); ui.announce(M); ui.outcomeSound(M);
-  if (M.over) { M.phase = 'over'; renderTray(); later(() => tok === M.token && showEnd(), 1900); return; }
+  if (M.over) { M.phase = 'over'; renderTray(); later(() => tok === M.token && showEnd(), 1200); return; }
   M.phase = 'result'; renderTray();
-  if (!activePersons().length && !M.paused) later(() => tok === M.token && startRound(false), 1800);
+  if (!activePersons().length && !M.paused) later(() => tok === M.token && startRound(false), 1300);
 }
 function weighedHTML(){
   if (M.seats.length === 2 || !prefs.thoughts || !M.seats.some(p => p.type === 'bot')) return '';
