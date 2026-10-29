@@ -29,7 +29,7 @@
         <h1 class="title" id="t-title-sl" data-for="snakes" hidden><span>Snakes &amp;</span> <span>Ladders</span></h1>
         <div class="stickers" data-for="sps"><span class="sticker">2 to 6 phones</span><span class="sticker">Patthar, kaagaz, kainchi</span></div>
         <div class="stickers" data-for="snakes" hidden><span class="sticker">From 100 down to 0</span><span class="sticker">Snakes are your friends</span></div>
-        <p class="lede" data-for="sps">Host a game and friends join from their own phones. Or play Kheeladi’s bots, or pass one phone around.</p>
+        <p class="lede" data-for="sps">Host a game and friends join from their own phones. Or play a friend on this phone, both tapping at once, or take on Kheeladi’s bots.</p>
         <p class="lede" data-for="snakes" hidden>Everyone starts on 100 and races home to 0. Each turn is a throw of stone, paper, scissors: whoever wins rolls the dice.</p>
       </div>
 
@@ -74,9 +74,21 @@
         <div id="panel-local" role="tabpanel" aria-labelledby="tab-local" hidden>
           <div id="local-snakes" data-for="snakes" hidden>
             <div class="panel">
+              <section class="sec" aria-labelledby="l-sl-people">
+                <h2 class="label" id="l-sl-people">People on this phone</h2>
+                <div class="seg fill" role="group" aria-labelledby="l-sl-people">
+                  <button type="button" data-sl-people="1">Just me</button>
+                  <button type="button" data-sl-people="2">Two of us</button>
+                </div>
+                <div class="sl-names" id="sl-names">
+                  <input class="name-input" id="sl-name-0" type="text" maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="next" placeholder="Player 1" aria-label="Player 1 name" data-sl-name="0">
+                  <input class="name-input" id="sl-name-1" type="text" maxlength="16" autocomplete="off" autocapitalize="words" spellcheck="false" enterkeyhint="done" placeholder="Player 2" aria-label="Player 2 name" data-sl-name="1">
+                </div>
+                <p class="hint" id="sl-people-hint"></p>
+              </section>
               <section class="sec" aria-labelledby="l-sl-players">
                 <div class="sec-head">
-                  <h2 class="label" id="l-sl-players">You against</h2>
+                  <h2 class="label" id="l-sl-players">Bots</h2>
                   <div class="stepper" role="group" aria-label="Number of bots">
                     <button type="button" class="step-btn" data-act="sl-minus" aria-label="One bot fewer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
                     <output class="step-val" id="sl-bots-count" aria-live="polite">2</output>
@@ -84,9 +96,9 @@
                   </div>
                 </div>
                 <ul class="roster" id="sl-bots-list"></ul>
-                <p class="hint">To play people, use Online with friends: everyone throws on their own phone.</p>
+                <p class="hint">For more people, play online: everyone throws on their own phone.</p>
               </section>
-              <section class="sec" aria-labelledby="l-sl-level">
+              <section class="sec" aria-labelledby="l-sl-level" id="sl-level-sec">
                 <h2 class="label" id="l-sl-level">How the bots throw</h2>
                 <div class="seg fill" role="group" aria-labelledby="l-sl-level">
                   <button type="button" data-sl-level="easy">Easy</button>
@@ -278,14 +290,6 @@
     </div>
   </section>
 
-  <div class="handoff" id="handoff" hidden role="dialog" aria-modal="true" aria-labelledby="ho-title">
-    <p class="ho-step" id="ho-step"></p>
-    <h2 class="ho-title" id="ho-title"></h2>
-    <p class="ho-sub">Everyone else, look away.</p>
-    <button class="cta" type="button" id="ho-ready" data-act="ready"><span>I’m ready</span><span class="arrow" data-icon="arrow"></span></button>
-    <button class="linkbtn" type="button" id="ho-change" data-act="change" hidden></button>
-  </div>
-
   <div class="scrim" id="sheet-rules" hidden data-sheet>
     <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rules-title">
       <div class="sheet-head"><h2 id="rules-title">How to play</h2><button class="icon-btn" type="button" data-act="close" aria-label="Close" data-icon="close"></button></div>
@@ -297,7 +301,7 @@
         <div><h3>Groups: points</h3><p>Score 1 for every player you beat. With three stones, two scissors and a paper, each stone scores 2 and the paper scores 3. Most points after the last round wins. A tie at the top goes to a throw-off.</p></div>
         <div><h3>Groups: knockout</h3><p>A throw counts only when exactly two shapes show. Everyone on the losing shape is out. Last one standing wins. Handy for picking who goes first.</p></div>
         <div><h3>Snakes &amp; Ladders, reversed</h3><p>Everyone starts on 100 and races down to 0. Snakes are your friends: land on a snake’s head and slide down, closer to home. Ladders set you back: land at the foot of one and climb back up. Each turn, everyone throws stone, paper or scissors at once, and whoever beats the most players rolls the two dice. If everyone ties, throw again. Any roll that reaches 0 gets you home; no exact roll needed.</p></div>
-        <div><h3>One phone, many people</h3><p>Each person picks in secret, then passes the phone on. Cards stay face down until the last person has picked.</p></div>
+        <div><h3>Two people, one phone</h3><p>Each of you gets your own three buttons, side by side, and you both tap whenever you like. A pick only says “Locked in” until both are in, so nobody can copy. Add bots to fill more seats. On a keyboard: A S D on the left, J K L on the right.</p></div>
         <div><h3>Bots</h3><p>Bots lock in before anyone picks, using only earlier rounds. Easy has habits you can spot. Fair throws at random. Sharp studies each player’s habits and throws the counter.</p></div>
         <div><h3>The unbeatable plan</h3><p>Throw each shape a third of the time, truly at random. Nobody can beat that in the long run, and it can’t beat anyone either. People aren’t random, which is how you win.</p></div>
         <div class="keys"><span><kbd>1</kbd> Stone</span><span><kbd>2</kbd> Paper</span><span><kbd>3</kbd> Scissors</span><span><kbd>Enter</kbd> Continue</span></div>

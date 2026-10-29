@@ -35,13 +35,16 @@ function loadSetup(){
   return s;
 }
 const S = loadSetup();
+// Two people at most share one phone: they pick at the same time, side by side.
+const MAX_PEOPLE = 2;
+S.players.filter(p => p.type === 'person').slice(MAX_PEOPLE).forEach(p => { p.type = 'bot'; p.edited = false; p.name = ''; });
 function saveSetup(){ try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 const seatsInUse = () => S.players.slice(0, S.count);
 const personCount = () => seatsInUse().filter(p => p.type === 'person').length;
 function defaultName(i, type){
   if (type === 'bot') return BOT_NAMES[i];
-  if (i === 0) return personCount() >= 2 ? 'Player 1' : 'You';
-  return `Player ${i + 1}`;
+  if (personCount() < 2) return 'You';
+  return `Player ${seatsInUse().slice(0, i).filter(p => p.type === 'person').length + 1}`;
 }
 function seatName(i){ const p = S.players[i]; return p.edited && p.name.trim() ? p.name.trim() : defaultName(i, p.type); }
 
@@ -63,7 +66,7 @@ export function renderSetup(){
     </li>`).join('');
   if (focused && $(focused, list)) $(focused, list).focus();
   $('#players-hint').textContent =
-    persons >= 2 ? `${persons} people share this phone. Each picks in secret, then passes it on.` :
+    persons >= 2 ? 'You both pick at the same time, side by side on this phone. Neither pick shows until both are in.' :
     persons === 1 ? (bots ? 'Bots lock in before you pick, using only earlier rounds.' : '') :
     'Only bots. Sit back and watch them play.';
   $('#sec-bots').hidden = bots === 0;
@@ -84,13 +87,17 @@ export function setupClick(t){
   if (d.level) { S.level = d.level; saveSetup(); renderSetup(); return true; }
   if (d.type && d.seat != null) {
     const p = S.players[+d.seat];
+    if (d.type === 'person' && p.type !== 'person' && personCount() >= MAX_PEOPLE) {
+      ui.toast('Two people can share one phone. For more, play online.');
+      return true;
+    }
     if (p.type !== d.type) { p.type = d.type; p.edited = false; p.name = ''; }
     saveSetup(); renderSetup(); return true;
   }
   if (d.act === 'minus' && S.count > 2) { S.count--; saveSetup(); renderSetup(); return true; }
   if (d.act === 'plus' && S.count < 8) {
     const n = S.players[S.count];
-    if (!n.edited) n.type = S.players[S.count - 1].type;
+    if (!n.edited) n.type = S.players[S.count - 1].type === 'person' && personCount() < MAX_PEOPLE ? 'person' : 'bot';
     S.count++; saveSetup(); renderSetup(); return true;
   }
   return false;
@@ -124,7 +131,7 @@ export function play(){
   ui.audio();
   const seats = seatsInUse().map((p, i) => ({id: i, name: seatName(i), type: p.type, color: SEATS[i]}));
   M = Object.assign(createMatch({seats, bestOf: S.bestOf, mode: S.mode, rounds: S.rounds}), {
-    level: S.level, picks: {}, notes: {}, preds: {}, queue: [], lastPicker: null, phase: 'idle',
+    level: S.level, picks: {}, notes: {}, preds: {}, phase: 'idle',
     revealed: false, result: null, reads: {}, token: 0, paused: false, notesOpen: false
   });
   ui.buildTable(M); ui.show('play'); window.scrollTo(0, 0);
@@ -148,46 +155,36 @@ function startRound(first){
   clearTimers();
   M.token++;
   if (!first) nextRound(M);
-  M.picks = {}; M.notes = {}; M.preds = {}; M.result = null; M.revealed = false; M.lastPicker = null;
+  M.picks = {}; M.notes = {}; M.preds = {}; M.result = null; M.revealed = false;
   const act = activeSeats(M);
   // Bots lock in first, from earlier rounds only.
   for (const p of act) if (p.type === 'bot') { const c = botChoose(M.level, p, act); M.picks[p.id] = c.move; M.notes[p.id] = c.note; M.preds[p.id] = c.preds; }
-  M.queue = act.filter(p => p.type === 'person').map(p => p.id);
   ui.resetCards(M, !first);
   ui.renderTop(M); band();
-  if (!M.queue.length) { M.phase = 'auto'; ui.renderSeats(M); renderTray(); const tok = M.token; later(() => tok === M.token && reveal(), 300); return; }
-  promptNext();
-}
-function promptNext(){
-  if (activePersons().length >= 2) showHandoff(M.queue[0]);
-  else { M.phase = 'pick'; ui.renderSeats(M); renderTray(); }
-}
-export function choose(move){
-  if (!M) return;
-  if (M.phase === 'result' && activePersons().length === 1) startRound(false);
-  if (M.phase !== 'pick') return;
-  const id = M.queue.shift();
-  M.picks[id] = move; M.lastPicker = id; M.phase = 'locking';
-  ui.sfx.pick(); ui.buzz(10);
-  const picks = $('#tray .picks'), tile = picks && $(`.pick[data-pick="${move}"]`, picks);
-  if (picks) { picks.classList.add('has-chosen'); $$('.pick', picks).forEach(b => { b.disabled = b !== tile; }); if (tile) tile.classList.add('chosen'); }
-  ui.renderSeats(M); band();
-  const tok = M.token;
-  if (!M.queue.length) later(() => tok === M.token && reveal(), 160);
-  else later(() => tok === M.token && showHandoff(M.queue[0]), 300);
-}
-export function changeLast(){
-  const id = M.lastPicker;
-  if (id == null) return;
-  delete M.picks[id];
-  M.queue.unshift(id); M.lastPicker = null;
-  $('#handoff').hidden = true;
-  M.phase = 'pick'; ui.renderSeats(M); band(); renderTray();
-}
-export function ready(){
-  $('#handoff').hidden = true;
+  const people = act.filter(p => p.type === 'person');
+  if (!people.length) { M.phase = 'auto'; ui.renderSeats(M); renderTray(); const tok = M.token; later(() => tok === M.token && reveal(), 300); return; }
   M.phase = 'pick'; ui.renderSeats(M); renderTray();
-  const f = $('#tray .pick'); f && f.focus({preventScroll: true});
+}
+// who: the seat that tapped. Two people on one phone tap at the same time; the cards turn once both are in.
+export function choose(move, who){
+  if (!M) return;
+  const people = activePersons();
+  if (M.phase === 'result' && people.length) startRound(false);
+  if (M.phase !== 'pick') return;
+  const seat = who == null ? people[0] : people.find(p => String(p.id) === String(who));
+  if (!seat) return;
+  const first = M.picks[seat.id] === undefined;
+  M.picks[seat.id] = move;
+  ui.sfx.pick(); ui.buzz(10);
+  const done = people.every(p => M.picks[p.id] !== undefined);
+  if (done) M.phase = 'locking';
+  if (people.length === 1) {
+    const picks = $('#tray .picks'), tile = picks && $(`.pick[data-pick="${move}"]`, picks);
+    if (picks) { picks.classList.add('has-chosen'); $$('.pick', picks).forEach(b => { b.disabled = b !== tile; }); if (tile) tile.classList.add('chosen'); }
+  } else renderTray();
+  if (first) { ui.renderSeats(M); band(); }
+  const tok = M.token;
+  if (done) later(() => tok === M.token && reveal(), 160);
 }
 async function reveal(){
   const tok = M.token;
@@ -217,14 +214,15 @@ function weighedHTML(){
 function renderTray(){
   const tray = $('#tray'), ph = M.phase, ap = activePersons();
   let html = weighedHTML();
-  if (ph === 'pick') {
-    const p = M.seats[M.queue[0]];
-    html += ui.trayHead(isYou(p) ? 'Your throw' : `${p.name}’s throw`, ap.length >= 2 ? 'Only you should see this' : '') + ui.picksHTML(true);
+  if (ap.length === 2 && (ph === 'pick' || ph === 'result' || ph === 'locking' || ph === 'reveal')) {
+    const locked = ph === 'pick' ? ap.filter(p => M.picks[p.id] !== undefined).map(p => p.id) : ph === 'result' ? [] : ap.map(p => p.id);
+    html += ui.duoHTML(ap, locked, ph === 'pick' || ph === 'result');
+  } else if (ph === 'pick') {
+    const p = ap[0];
+    html += ui.trayHead(isYou(p) ? 'Your throw' : `${p.name}’s throw`) + ui.picksHTML(true);
   } else if (ph === 'result' && ap.length === 1) {
     const p = ap[0];
     html += ui.trayHead(isYou(p) ? 'Throw again' : `${p.name}, throw again`, 'Pick to start the next round') + ui.picksHTML(true);
-  } else if (ph === 'result' && ap.length >= 2) {
-    html += `<button class="cta wide" type="button" data-act="next"><span>Next round</span><span class="arrow">${ui.ICON.arrow}</span></button>`;
   } else if (ph === 'result') {
     html += `<div class="tray-row"><div class="tray-msg"><b>Bots are playing</b><span>${M.paused ? 'Paused.' : 'The next round starts by itself.'}</span></div><button class="pill" type="button" data-act="${M.paused ? 'next' : 'pause'}">${M.paused ? 'Next round' : 'Pause'}</button></div>`;
   } else if (ph === 'over') {
@@ -235,20 +233,6 @@ function renderTray(){
   tray.innerHTML = html;
   const det = $('.weighed', tray);
   if (det && !det.hasAttribute('aria-disabled')) det.addEventListener('toggle', () => { M.notesOpen = det.open; });
-}
-function showHandoff(id){
-  M.phase = 'handoff';
-  const p = M.seats[id], ho = $('#handoff'), act = activeSeats(M), locked = act.filter(q => M.picks[q.id] !== undefined).length;
-  ho.style.setProperty('--seat', p.color);
-  $('#ho-step').textContent = `${ui.roundLabel(M)} · ${locked} of ${act.length} locked in`;
-  $('#ho-title').innerHTML = `Pass to <span>${esc(p.name)}</span>`;
-  $('#ho-ready span').textContent = `I’m ${p.name}`;
-  const prev = M.lastPicker != null ? M.seats[M.lastPicker] : null;
-  $('#ho-change').hidden = !prev;
-  if (prev) $('#ho-change').textContent = `Wait, ${prev.name} wants to change`;
-  ho.hidden = false;
-  ui.renderSeats(M); band(); renderTray();
-  setTimeout(() => $('#ho-ready').focus({preventScroll: true}), 60);
 }
 export function next(){ M.paused = false; startRound(false); }
 export function pause(){ M.paused = true; clearTimers(); renderTray(); }

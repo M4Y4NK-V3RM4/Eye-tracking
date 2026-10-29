@@ -189,7 +189,8 @@ async function playTurn(res, seats, me, isLive, trayTitle){
   const w = throwWords(res, nameOf);
   trayTitle(w.title, w.sub);
   if (res.kind === 'again') { ui.sfx.even(); await sleep(quick() ? 0 : TIMING.reveal); return isLive(); }
-  res.rollers.includes(me) ? ui.sfx.win() : ui.sfx.tick(3);
+  const cheer = me == null ? res.rollers.some(id => seats.find(s => s.id === id)?.type === 'person') : res.rollers.includes(me);
+  cheer ? ui.sfx.win() : ui.sfx.tick(3);
   await sleep(quick() ? 0 : TIMING.reveal);
   for (const r of res.rolls) {
     if (!isLive()) return false;
@@ -234,78 +235,117 @@ function setTrayTitle(title, sub){
   else if (sub && h) h.insertAdjacentHTML('afterend', `<span class="tray-aside" id="tray-aside">${esc(sub)}</span>`);
 }
 
-// ---------- Against bots on this phone ----------
-const L = {m: null, busy: false, queued: null, token: 0, me: 'you'};
+// ---------- On this phone: one or two people, and bots ----------
+// Two people share the phone side by side and tap at the same time; bots fill the other seats.
+const L = {m: null, busy: false, pending: {}, token: 0, people: []};
 const SETUP_KEY = 'kheeladi-snakes-setup-v1';
-const LS = (() => { const s = {bots: 2, level: 'sharp'}; try { Object.assign(s, JSON.parse(localStorage.getItem(SETUP_KEY) || '{}')); } catch (e) {} s.bots = Math.min(5, Math.max(1, s.bots | 0)); if (!LEVELS[s.level]) s.level = 'sharp'; return s; })();
+const LS = (() => {
+  const s = {people: 1, bots: 2, level: 'sharp', names: ['', '']};
+  try { Object.assign(s, JSON.parse(localStorage.getItem(SETUP_KEY) || '{}')); } catch (e) {}
+  s.people = s.people === 2 ? 2 : 1;
+  s.bots = Math.min(6 - s.people, Math.max(2 - s.people, s.bots | 0));
+  if (!LEVELS[s.level]) s.level = 'sharp';
+  if (!Array.isArray(s.names)) s.names = ['', ''];
+  return s;
+})();
 const saveLS = () => { try { localStorage.setItem(SETUP_KEY, JSON.stringify(LS)); } catch (e) {} };
+const personName = i => LS.people === 1 ? 'You' : (String(LS.names[i] || '').trim() || `Player ${i + 1}`);
 export function renderLocalSetup(){
+  const minBots = 2 - LS.people, maxBots = 6 - LS.people;
+  LS.bots = Math.min(maxBots, Math.max(minBots, LS.bots));
+  $$('[data-sl-people]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.slPeople === LS.people));
+  $('#sl-names').hidden = LS.people === 1;
+  [0, 1].forEach(i => { const el = $('#sl-name-' + i); if (document.activeElement !== el) el.value = LS.names[i] || ''; });
+  $('#sl-people-hint').textContent = LS.people === 2
+    ? 'You each get your own three buttons, side by side, and tap at the same time. Neither throw shows until both are in.'
+    : 'Bots throw at the same moment you do, using only earlier turns.';
   $('#sl-bots-count').textContent = LS.bots;
-  $('[data-act="sl-minus"]').disabled = LS.bots <= 1;
-  $('[data-act="sl-plus"]').disabled = LS.bots >= 5;
-  $('#sl-bots-list').innerHTML = [`<li class="prow" style="--seat:${SEAT_COLORS[0]}">${ui.avatarHTML('person', 'You', SEAT_COLORS[0])}<span class="rname">You</span><span></span></li>`]
-    .concat(BOT_NAMES.slice(0, LS.bots).map((n, i) => `<li class="prow" style="--seat:${SEAT_COLORS[i + 1]}">${ui.avatarHTML('bot', n, SEAT_COLORS[i + 1])}<span class="rname">${n}<small>${LS.level[0].toUpperCase() + LS.level.slice(1)} bot</small></span><span></span></li>`)).join('');
+  $('[data-act="sl-minus"]').disabled = LS.bots <= minBots;
+  $('[data-act="sl-plus"]').disabled = LS.bots >= maxBots;
+  const lvl = LS.level[0].toUpperCase() + LS.level.slice(1);
+  $('#sl-bots-list').innerHTML = BOT_NAMES.slice(0, LS.bots).map((n, i) => `<li class="prow" style="--seat:${SEAT_COLORS[i + LS.people]}">${ui.avatarHTML('bot', n, SEAT_COLORS[i + LS.people])}<span class="rname">${n}<small>${lvl} bot</small></span><span></span></li>`).join('');
+  $('#sl-level-sec').hidden = LS.bots === 0;
   $$('[data-sl-level]').forEach(b => b.setAttribute('aria-pressed', b.dataset.slLevel === LS.level));
   $('#sl-level-hint').textContent = LEVELS[LS.level];
-  $('#sl-play-label').textContent = `Play ${LS.bots} ${LS.bots === 1 ? 'bot' : 'bots'}`;
+  $('#sl-play-label').textContent = LS.people === 2
+    ? (LS.bots ? `Play with ${LS.bots} ${LS.bots === 1 ? 'bot' : 'bots'}` : 'Play head to head')
+    : `Play ${LS.bots} ${LS.bots === 1 ? 'bot' : 'bots'}`;
 }
 export function setupClick(t){
+  if (t.dataset.slPeople) { LS.people = +t.dataset.slPeople; saveLS(); renderLocalSetup(); return true; }
   if (t.dataset.slLevel) { LS.level = t.dataset.slLevel; saveLS(); renderLocalSetup(); return true; }
-  if (t.dataset.act === 'sl-minus' && LS.bots > 1) { LS.bots--; saveLS(); renderLocalSetup(); return true; }
-  if (t.dataset.act === 'sl-plus' && LS.bots < 5) { LS.bots++; saveLS(); renderLocalSetup(); return true; }
+  if (t.dataset.act === 'sl-minus') { LS.bots--; saveLS(); renderLocalSetup(); return true; }
+  if (t.dataset.act === 'sl-plus') { LS.bots++; saveLS(); renderLocalSetup(); return true; }
   return false;
 }
+export function nameInput(t){ LS.names[+t.dataset.slName] = t.value.slice(0, 16); saveLS(); }
 let mode = null;   // 'local' or 'online': who owns the snakes screen
 export const isLocal = () => mode === 'local' && !!L.m;
 export function playLocal(){
   mode = 'local';
   ui.audio();
   L.token++;
-  const seats = [{id: 'you', name: 'You', real: prefs.name || 'You', type: 'person', color: SEAT_COLORS[0]}]
-    .concat(BOT_NAMES.slice(0, LS.bots).map((n, i) => ({id: 'b' + i, name: n, type: 'bot', color: SEAT_COLORS[i + 1]})));
+  const people = Array.from({length: LS.people}, (_, i) => ({id: 'p' + i, name: personName(i), type: 'person', color: SEAT_COLORS[i]}));
+  if (LS.people === 1) people[0].real = prefs.name || 'You';
+  const seats = people.concat(BOT_NAMES.slice(0, LS.bots).map((n, i) => ({id: 'b' + i, name: n, type: 'bot', color: SEAT_COLORS[i + LS.people]})));
   L.m = createSnakes({seats});
-  L.m.seats[0].real = seats[0].real;
+  L.m.seats.forEach((s, i) => { if (seats[i].real) s.real = seats[i].real; });
   L.m.level = LS.level;
-  L.busy = false; L.queued = null;
+  L.people = L.m.seats.filter(s => s.type === 'person');
+  L.busy = false; L.pending = {};
   showScreen('Snakes & Ladders');
   $('#sl-sub').textContent = 'Race from 100 down to 0';
-  buildTokens(L.m.seats, L.me);
+  buildTokens(L.m.seats, LS.people === 1 ? 'p0' : null);
   placeAll(L.m.seats);
   hideCallout();
   for (const d of $$('#sl-dice .die')) { d.getAnimations().forEach(a => a.cancel()); d.style.opacity = '0'; }
-  renderStrip({seats: L.m.seats, me: L.me, res: null});
+  renderStrip({seats: L.m.seats, me: LS.people === 1 ? 'p0' : null, res: null});
   localTray();
 }
-function localTray(chosen = null){
-  const title = L.busy ? $('#sl-tray .tray-title')?.textContent || 'Rolling' : L.m.round === 1 ? 'Your throw' : 'Throw again';
-  const aside = L.busy ? ($('#sl-tray .tray-aside')?.textContent || '') : 'Beat the bots to roll';
-  $('#sl-tray').innerHTML = trayHTML(title, aside, ui.picksHTML(true, chosen));
+// The tray: one person's buttons, or two columns side by side. A pick made while a turn is still
+// playing out waits for the next throw.
+function localTray(){
+  const locked = Object.keys(L.pending);
+  const title = L.busy ? ($('#sl-tray .tray-title')?.textContent || 'Rolling') : L.m.round === 1 ? 'Throw!' : 'Throw again';
+  const aside = L.busy ? ($('#sl-tray .tray-aside')?.textContent || '') : L.people.length === 2 ? 'Both tap at once' : 'Beat the bots to roll';
+  if (L.people.length === 2) {
+    $('#sl-tray').innerHTML = ui.trayHead(title, aside) + ui.duoHTML(L.people, locked, true);
+  } else {
+    $('#sl-tray').innerHTML = ui.trayHead(title, aside) + ui.picksHTML(true, L.pending.p0 ?? null);
+  }
 }
-async function localChoose(move){
+function localChoose(move, who){
   if (!L.m || L.m.over) return;
-  if (L.busy) { L.queued = move; localTray(move); return; }   // throw the next one while the last turn plays out
+  const seat = who == null ? L.people[0] : L.people.find(p => p.id === who);
+  if (!seat) return;
+  L.pending[seat.id] = move;
+  ui.sfx.pick(); ui.buzz(10);
+  if (L.busy || L.people.some(p => L.pending[p.id] == null)) { localTray(); return; }
+  runTurn();
+}
+async function runTurn(){
   L.busy = true;
   const tok = L.token, m = L.m, act = activeSnakes(m);
-  const picks = {[L.me]: move};
+  const picks = {...L.pending};
+  L.pending = {};
   for (const s of act) if (s.type === 'bot') picks[s.id] = botChoose(m.level, s, act).move;
   // the board shows positions from before the throw; the engine moves them now
   const before = m.seats.map(s => ({...s}));
+  const me = L.people.length === 1 ? L.people[0].id : null;
   const res = playSnakes(m, picks);
   $('#sl-sub').textContent = `Turn ${m.round}`;
-  localTray(null);
-  ui.sfx.pick(); ui.buzz(10);
-  await playTurn(res, before, L.me, () => tok === L.token, setTrayTitle);
+  localTray();
+  await playTurn(res, before, me, () => tok === L.token, setTrayTitle);
   if (tok !== L.token) return;
   placeAll(m.seats);
-  renderStrip({seats: m.seats, me: L.me, res});
-  if (m.over) { setTimeout(() => tok === L.token && showEnd(m, L.me, {local: true}), quick() ? 300 : 1400); return; }
+  renderStrip({seats: m.seats, me, res});
+  if (m.over) { setTimeout(() => tok === L.token && showEnd(m, me, {local: true, solo: L.people.length === 1}), quick() ? 300 : 1400); return; }
   nextSnakes(m);
   L.busy = false;
-  const q = L.queued; L.queued = null;
-  if (q != null) return localChoose(q);
+  if (L.people.every(p => L.pending[p.id] != null)) return runTurn();
   localTray();
 }
-export function endLocal(){ L.token++; L.m = null; L.busy = false; mode = null; hideCallout(); }
+export function endLocal(){ L.token++; L.m = null; L.busy = false; L.pending = {}; mode = null; hideCallout(); }
 
 // ---------- Online ----------
 // online.js calls renderOnline with each state from the server; api = {send, serverNow, isHost}.
@@ -422,7 +462,7 @@ function onlineChoose(move){
   if (O.animating) { $$('#sl-tray .pick').forEach(b => { b.classList.toggle('chosen', +b.dataset.pick === move); }); $('#sl-tray .picks')?.classList.add('has-chosen'); return; }
   onlineTray();
 }
-export function choose(move){ if (mode === 'online') onlineChoose(move); else localChoose(move); }
+export function choose(move, who){ if (mode === 'online') onlineChoose(move); else localChoose(move, who); }
 export function resultsOnline(){ if (O.state && O.state.phase === 'over') showOnlineEnd(false); }
 function showOnlineEnd(quiet){
   clearTimeout(O.overTimer); O.overTimer = 0;
@@ -445,7 +485,7 @@ function journey(p){
 }
 function showEnd(m, me, opts){
   const order = standingsSnakes(m), w = m.seats.find(s => s.id === m.winner);
-  const lostToBot = opts.local && w && w.type === 'bot';
+  const lostToBot = opts.local && opts.solo && w && w.type === 'bot';
   const throws = Math.max(0, ...m.seats.map(s => (s.moves || []).length));
   $('#end-title').textContent = !w ? 'Game over' : isYou(w) ? 'You’re home' : `${w.name} is home`;
   $('#end-sticker').textContent = w ? `Won ${w.wins} ${w.wins === 1 ? 'throw' : 'throws'}` : 'Game over';
@@ -454,7 +494,7 @@ function showEnd(m, me, opts){
   $('#end-cards').innerHTML = w ? `<div class="sl-token big" style="--seat:${w.color}">${esc(ui.initial(w.real || w.name))}</div><figcaption>From 100 to home</figcaption>` : '';
   $('#standings').innerHTML = order.map((p, i) => `<li class="srow"><span class="rank">${i + 1}</span>${ui.avatarHTML(p.type, p.real || p.name, p.color)}<span class="sname">${esc(p.name)}<small>${esc(p.left ? 'Left the game' : p.id === m.winner ? 'Home' : `On ${p.pos}`)} · ${p.wins} ${p.wins === 1 ? 'throw' : 'throws'} won</small></span><span class="sval">${p.pos === 0 ? '0' : p.pos}</span></li>`).join('');
   $('#finds-title').textContent = 'How the race went';
-  const subjects = [m.seats.find(s => s.id === me), ...m.seats.filter(s => s.id !== me)].filter(Boolean);
+  const subjects = me ? [m.seats.find(s => s.id === me), ...m.seats.filter(s => s.id !== me)].filter(Boolean) : m.seats.slice();
   $('#finds').className = 'finds' + (subjects.length > 1 ? ' two' : '');
   $('#finds').innerHTML = subjects.map(p => {
     const T = p.moves ? p.moves.length : 0, c = [0, 0, 0];

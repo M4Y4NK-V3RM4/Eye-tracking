@@ -51,8 +51,6 @@ const actions = {
   },
   // one phone
   play: () => { mode = 'local'; local.play(); },
-  ready: () => local.ready(),
-  change: () => local.changeLast(),
   next: () => local.next(),
   pause: () => local.pause(),
   results: () => local.showEnd(),
@@ -89,8 +87,9 @@ document.addEventListener('click', e => {
   if (!t || t.disabled) return;
   const d = t.dataset;
   if (d.pick != null) {
-    if (ui.screen === 'snakes') snakes.choose(+d.pick);
-    else (mode === 'online' ? online : local).choose(+d.pick);
+    if (ui.screen === 'snakes') snakes.choose(+d.pick, d.who);
+    else if (mode === 'online') online.choose(+d.pick);
+    else local.choose(+d.pick, d.who);
     return;
   }
   if (d.set) { (ui.screen === 'lobby' ? online : local).setSetting(d.set, d.val); return; }
@@ -102,6 +101,7 @@ $$('[data-sheet]').forEach(s => s.addEventListener('click', e => { if (e.target 
 document.addEventListener('input', e => {
   const t = e.target;
   if (t.classList.contains('name-input') && t.dataset.seat != null) local.nameInput(t);
+  if (t.dataset.slName != null) snakes.nameInput(t);
   if (t.id === 'my-name' || t.id === 'join-name') { prefs.name = t.value.slice(0, 16); savePrefs(); $('#online-error').textContent = ''; $('#join-error').textContent = ''; }
   if (t.id === 'join-code') {
     const v = t.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 4);
@@ -127,14 +127,22 @@ document.addEventListener('keydown', e => {
   }
   if (inField || e.metaKey || e.ctrlKey || e.altKey || ui.sheetOpen()) return;
   if (ui.screen !== 'play' && ui.screen !== 'snakes') return;
-  if (['1', '2', '3'].includes(e.key) && $('#handoff').hidden) {
-    const b = $(`${ui.screen === 'snakes' ? '#sl-tray' : '#tray'} .pick[data-pick="${+e.key - 1}"]:not(:disabled)`);
+  const tray = ui.screen === 'snakes' ? '#sl-tray' : '#tray';
+  // Two people on one phone: A S D on the left, J K L on the right. One person: 1 2 3.
+  const k = e.key.toLowerCase(), duo = {a: [0, 0], s: [0, 1], d: [0, 2], j: [1, 0], k: [1, 1], l: [1, 2]}[k];
+  if (duo && $(`${tray} .duo`)) {
+    const b = $$(`${tray} .duo-col`)[duo[0]]?.querySelectorAll('.dpick')[duo[1]];
+    if (b && !b.disabled) { e.preventDefault(); b.click(); }
+    return;
+  }
+  if (['1', '2', '3'].includes(e.key)) {
+    const b = $(`${tray} .pick[data-pick="${+e.key - 1}"]:not(:disabled)`);
     if (b) { e.preventDefault(); b.click(); }
     return;
   }
   if (e.key === 'Enter' && !e.target.closest('button')) {
-    if (!$('#handoff').hidden) $('#ho-ready').click();
-    else { const n = $('#tray [data-act="next"], #tray [data-act="results"], #tray [data-act="o-results"]'); n && n.click(); }
+    const n = $('#tray [data-act="next"], #tray [data-act="results"], #tray [data-act="o-results"], #sl-tray [data-act="sl-results"]');
+    n && n.click();
   }
 });
 

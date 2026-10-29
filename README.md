@@ -5,8 +5,10 @@ Two Kheeladi games for phones and the web, each playable two ways:
 - **Online with friends.** One person hosts and gets a four-letter room code and a QR code. Everyone else scans
   it, opens the link, or types the code on their own phone. Two to six people play; anyone else who joins watches
   and takes a seat at the next game. The host picks the game in the lobby.
-- **On this phone.** Play Kheeladi's bots (Easy, Fair or Sharp). Stone Paper Scissors also does pass-and-play with
-  secret picks, two to eight seats. Works without the server once the page has loaded.
+- **On this phone.** One or two people, plus Kheeladi's bots (Easy, Fair or Sharp) in the other seats. Two people
+  share the phone side by side: each gets their own column of three buttons and both tap at the same time. A pick
+  shows only "Locked in" until both are in, so nobody can copy, and nobody has to hand the phone over (keyboard:
+  A S D on the left, J K L on the right). Works without the server once the page has loaded.
 
 **Stone Paper Scissors.** Two players play one throw or best of 3, 5 or 7. Groups play **points** (1 point for
 every player you beat, most points after 3 to 10 rounds, a tie goes to a throw-off) or **knockout** (a throw counts
@@ -51,7 +53,7 @@ phone ──WebSocket /ws──┘      ├─ serves public/ and shared/ (the w
 | `shared/` | Rules, match engines (`engine.js` for Stone Paper Scissors, `snakes.js` for Snakes & Ladders), bots and wording, used by the server and the browser |
 | `public/` | The web app: `index.html`, `css/app.css`, `js/` (`online.js`, `local.js`, `snakes.js`, `ui.js`, `app.js`) |
 | `test/` | `node --test`: the engine, and the server over real WebSockets |
-| `e2e/multiplayer.mjs`, `e2e/snakes.mjs` | Several phone browsers host, join and play each game to the end (Playwright) |
+| `e2e/multiplayer.mjs`, `e2e/snakes.mjs`, `e2e/duo.mjs` | Several phone browsers host, join and play each game to the end, and two people share one phone (Playwright) |
 
 ## Run it
 
