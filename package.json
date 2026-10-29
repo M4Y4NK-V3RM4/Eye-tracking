@@ -1,0 +1,22 @@
+{
+  "name": "stone-paper-scissors",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Kheeladi's Stone Paper Scissors: host a game, friends join from their own phones.",
+  "type": "module",
+  "main": "server/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test test/*.test.js",
+    "check": "node scripts/check.mjs && node --test test/*.test.js",
+    "e2e": "node e2e/multiplayer.mjs"
+  },
+  "dependencies": {
+    "qrcode-generator": "^1.5.2",
+    "ws": "^8.22.0"
+  }
+}

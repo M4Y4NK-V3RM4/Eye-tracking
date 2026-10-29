@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Stone Paper Scissors · Kheeladi</title>
+<meta name="description" content="Host a game of Stone Paper Scissors and friends join from their own phones. Or play Kheeladi’s bots on this one.">
+<meta name="theme-color" content="#f6efe7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0c0c0e" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="preload" href="/fonts/anton-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="/fonts/readex-pro-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/css/app.css">
+<script type="module" src="/js/app.js"></script>
+</head>
+<body>
+<main id="app">
+
+  <!-- Home: online with friends, or on this phone -->
+  <section class="screen setup" id="screen-home" aria-labelledby="t-title">
+    <div class="setup-wrap home-grid gutter">
+      <header class="brandbar">
+        <span class="wordmark" role="img" aria-label="Kheeladi">KHEELADI</span>
+        <button class="pill" type="button" data-act="rules">How to play</button>
+      </header>
+      <div class="hero">
+        <h1 class="title" id="t-title"><span>Stone Paper</span> <span>Scissors</span></h1>
+        <div class="stickers"><span class="sticker">2 to 6 phones</span><span class="sticker">Patthar, kaagaz, kainchi</span></div>
+        <p class="lede">Host a game and friends join from their own phones. Or play Kheeladi’s bots, or pass one phone around.</p>
+      </div>
+
+      <div class="config">
+        <div class="tabs" role="tablist" aria-label="How you’re playing">
+          <button type="button" role="tab" id="tab-online" aria-controls="panel-online" data-act="tab" data-tab="online">Online with friends</button>
+          <button type="button" role="tab" id="tab-local" aria-controls="panel-local" data-act="tab" data-tab="local">On this phone</button>
+        </div>
+
+        <div class="panel" id="panel-online" role="tabpanel" aria-labelledby="tab-online">
+          <section class="sec">
+            <div class="field">
+              <label class="label" for="my-name">Your name</label>
+              <input class="name-input big" id="my-name" type="text" maxlength="16" autocomplete="nickname" autocapitalize="words" spellcheck="false" enterkeyhint="go" placeholder="Type your name">
+            </div>
+            <button class="cta wide" type="button" data-act="host"><span>Host a game</span><span class="arrow" data-icon="arrow"></span></button>
+            <p class="hint">You get a code and a QR code. Up to 6 people play, each on their own phone.</p>
+          </section>
+          <section class="sec">
+            <div class="or">or join one</div>
+            <div class="field">
+              <label class="label" for="join-code">Room code</label>
+              <div class="join-row">
+                <input class="code-input" id="join-code" type="text" maxlength="4" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="join" placeholder="CODE" aria-describedby="online-error">
+                <button class="btn2" type="button" data-act="join">Join</button>
+              </div>
+            </div>
+            <p class="hint err" id="online-error" role="alert"></p>
+          </section>
+        </div>
+
+        <div id="panel-local" role="tabpanel" aria-labelledby="tab-local" hidden>
+          <form class="panel" id="setup-form" novalidate>
+            <section class="sec" aria-labelledby="l-players">
+              <div class="sec-head">
+                <h2 class="label" id="l-players">Players</h2>
+                <div class="stepper" role="group" aria-label="Number of players">
+                  <button type="button" class="step-btn" data-act="minus" aria-label="One player fewer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+                  <output class="step-val" id="count" aria-live="polite">2</output>
+                  <button type="button" class="step-btn" data-act="plus" aria-label="One more player"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
+                </div>
+              </div>
+              <ol class="players" id="players"></ol>
+              <p class="hint" id="players-hint"></p>
+            </section>
+            <section class="sec" id="sec-bots" aria-labelledby="l-bots">
+              <h2 class="label" id="l-bots">How the bots play</h2>
+              <div class="seg fill" role="group" aria-labelledby="l-bots">
+                <button type="button" data-level="easy">Easy</button>
+                <button type="button" data-level="fair">Fair</button>
+                <button type="button" data-level="sharp">Sharp</button>
+              </div>
+              <p class="hint" id="level-hint"></p>
+            </section>
+            <section class="sec" aria-labelledby="l-win" id="local-win"></section>
+            <section class="sec" aria-labelledby="l-table">
+              <h2 class="label" id="l-table">At the table</h2>
+              <label class="opt" for="opt-chant"><span><b>Chant before the reveal</b><small>Stone, paper, scissors, shoot!</small></span><input type="checkbox" role="switch" class="switch" id="opt-chant" data-pref="chant"></label>
+              <label class="opt" for="opt-thoughts" id="opt-thoughts-row"><span><b>Show what the bots weighed</b><small>Each bot explains its throw after the reveal.</small></span><input type="checkbox" role="switch" class="switch" id="opt-thoughts" data-pref="thoughts"></label>
+              <label class="opt" for="opt-sound"><span><b>Sound</b></span><input type="checkbox" role="switch" class="switch" id="opt-sound" data-pref="sound"></label>
+            </section>
+          </form>
+          <div class="playbar">
+            <button class="cta wide" id="btn-play" type="button" data-act="play"><span id="play-label">Play</span><span class="arrow" data-icon="arrow"></span></button>
+          </div>
+        </div>
+      </div>
+
+      <div class="felt hero-felt home-felt" aria-hidden="true">
+        <div class="fan" id="fan"></div>
+        <span class="sticker s1">Bots that read you</span>
+        <span class="sticker s2">Every card flips at once</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- Invited by a link or a QR code -->
+  <section class="screen" id="screen-join" hidden aria-labelledby="join-title">
+    <div class="simple-wrap gutter">
+      <header class="brandbar">
+        <span class="wordmark" role="img" aria-label="Kheeladi">KHEELADI</span>
+        <button class="pill" type="button" data-act="rules">How to play</button>
+      </header>
+      <div class="felt join-felt">
+        <span class="sticker">You’re invited</span>
+        <h1 class="join-title" id="join-title">Join <span id="join-big">····</span></h1>
+        <p class="join-sub" id="join-sub">Stone Paper Scissors, on your own phone.</p>
+      </div>
+      <div class="panel">
+        <section class="sec">
+          <div class="field">
+            <label class="label" for="join-name">Your name</label>
+            <input class="name-input big" id="join-name" type="text" maxlength="16" autocomplete="nickname" autocapitalize="words" spellcheck="false" enterkeyhint="join" placeholder="Type your name" aria-describedby="join-error">
+          </div>
+          <button class="cta wide" type="button" data-act="join-link" id="btn-join-link"><span>Join the game</span><span class="arrow" data-icon="arrow"></span></button>
+          <p class="hint err" id="join-error" role="alert"></p>
+        </section>
+      </div>
+      <button class="textbtn" type="button" data-act="home">Host your own game, or play on this phone</button>
+    </div>
+  </section>
+
+  <!-- Lobby: invite people, pick how to win, start -->
+  <section class="screen" id="screen-lobby" hidden aria-label="Lobby">
+    <div class="lobby-wrap gutter">
+      <header class="brandbar">
+        <span class="wordmark" role="img" aria-label="Kheeladi">KHEELADI</span>
+        <button class="pill" type="button" data-act="leave-ask">Leave</button>
+      </header>
+      <div class="felt invite">
+        <span class="label">Room code</span>
+        <div class="code-big" id="lobby-code" aria-live="polite"></div>
+        <img class="qr" id="lobby-qr" alt="QR code that opens this game" width="190" height="190">
+        <p class="invite-hint">Scan it, or open <b id="lobby-site"></b> and type the code.</p>
+        <div class="invite-actions">
+          <button class="pill" type="button" data-act="share">Share invite</button>
+          <button class="pill" type="button" data-act="copy-link" id="btn-copy-link">Copy link</button>
+        </div>
+      </div>
+      <section class="panel">
+        <div class="sec">
+          <div class="sec-head"><h2 class="label">Players</h2><span class="count" id="lobby-count"></span></div>
+          <ul class="roster" id="roster"></ul>
+          <p class="hint" id="roster-hint"></p>
+        </div>
+      </section>
+      <section class="panel"><div class="sec" id="lobby-settings"></div></section>
+      <section class="panel">
+        <div class="sec">
+          <h2 class="label">On this phone</h2>
+          <label class="opt" for="opt-chant-2"><span><b>Chant before the reveal</b></span><input type="checkbox" role="switch" class="switch" id="opt-chant-2" data-pref="chant"></label>
+          <label class="opt" for="opt-sound-2"><span><b>Sound</b></span><input type="checkbox" role="switch" class="switch" id="opt-sound-2" data-pref="sound"></label>
+        </div>
+      </section>
+      <div class="playbar" id="lobby-bar"></div>
+    </div>
+  </section>
+
+  <!-- The table: shared by online and one-phone play -->
+  <section class="screen play" id="screen-play" hidden aria-label="Match">
+    <div class="play-wrap gutter">
+      <header class="topbar">
+        <button class="icon-btn" type="button" data-act="quit" aria-label="Leave the match" data-icon="close"></button>
+        <div class="round-info"><h2 class="round-title" id="round-title">Round 1</h2><p class="round-sub" id="round-sub"></p></div>
+        <button class="icon-btn" type="button" data-act="rules" aria-label="How to play" data-icon="help"></button>
+        <button class="icon-btn" type="button" data-act="sound" id="btn-sound" aria-label="Sound" aria-pressed="true"></button>
+      </header>
+      <div class="felt table" id="table">
+        <div class="seats" id="seats"></div>
+        <div class="band" id="band"></div>
+        <div class="chant" id="chant" hidden aria-hidden="true"></div>
+      </div>
+      <div class="tray" id="tray"></div>
+    </div>
+  </section>
+
+  <section class="screen end" id="screen-end" hidden aria-labelledby="end-title">
+    <div class="end-wrap gutter">
+      <header class="brandbar">
+        <span class="wordmark" role="img" aria-label="Kheeladi">KHEELADI</span>
+        <button class="pill" type="button" data-act="rules">How to play</button>
+      </header>
+      <div class="felt end-felt">
+        <span class="sticker" id="end-sticker">Match over</span>
+        <h1 class="end-title" id="end-title">You win</h1>
+        <p class="end-sub" id="end-sub"></p>
+        <figure class="end-cards" id="end-cards"></figure>
+      </div>
+      <ol class="stand" id="standings" aria-label="Final standings"></ol>
+      <div class="sec-title"><h2 id="finds-title">What the bots noticed</h2><span class="sticker dotchip">Habits, in plain words</span></div>
+      <div class="finds" id="finds"></div>
+      <button class="textbtn" type="button" data-act="copy" id="btn-copy">Copy the result</button>
+      <textarea class="copybox" id="copybox" readonly hidden aria-label="Result to copy"></textarea>
+      <div class="end-actions" id="end-actions"></div>
+    </div>
+  </section>
+
+  <div class="handoff" id="handoff" hidden role="dialog" aria-modal="true" aria-labelledby="ho-title">
+    <p class="ho-step" id="ho-step"></p>
+    <h2 class="ho-title" id="ho-title"></h2>
+    <p class="ho-sub">Everyone else, look away.</p>
+    <button class="cta" type="button" id="ho-ready" data-act="ready"><span>I’m ready</span><span class="arrow" data-icon="arrow"></span></button>
+    <button class="linkbtn" type="button" id="ho-change" data-act="change" hidden></button>
+  </div>
+
+  <div class="scrim" id="sheet-rules" hidden data-sheet>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="rules-title">
+      <div class="sheet-head"><h2 id="rules-title">How to play</h2><button class="icon-btn" type="button" data-act="close" aria-label="Close" data-icon="close"></button></div>
+      <svg class="cycle" id="cycle" viewBox="0 0 340 304" role="img" aria-label="Stone blunts scissors, scissors cut paper, paper wraps stone"></svg>
+      <div class="rules">
+        <div><h3>Everyone throws at once</h3><p>Stone blunts scissors. Scissors cut paper. Paper wraps stone. The same shape is a draw.</p></div>
+        <div><h3>Online with friends</h3><p>One person hosts and gets a room code and a QR code. Everyone else scans it or types the code on their own phone. Up to 6 play; anyone else who joins watches. Nobody sees a throw until everyone has thrown, and you can change yours until then.</p></div>
+        <div><h3>Two players</h3><p>Play one throw, or best of 3, 5 or 7. Draws are thrown again.</p></div>
+        <div><h3>Groups: points</h3><p>Score 1 for every player you beat. With three stones, two scissors and a paper, each stone scores 2 and the paper scores 3. Most points after the last round wins. A tie at the top goes to a throw-off.</p></div>
+        <div><h3>Groups: knockout</h3><p>A throw counts only when exactly two shapes show. Everyone on the losing shape is out. Last one standing wins. Handy for picking who goes first.</p></div>
+        <div><h3>One phone, many people</h3><p>Each person picks in secret, then passes the phone on. Cards stay face down until the last person has picked.</p></div>
+        <div><h3>Bots</h3><p>Bots lock in before anyone picks, using only earlier rounds. Easy has habits you can spot. Fair throws at random. Sharp studies each player’s habits and throws the counter.</p></div>
+        <div><h3>The unbeatable plan</h3><p>Throw each shape a third of the time, truly at random. Nobody can beat that in the long run, and it can’t beat anyone either. People aren’t random, which is how you win.</p></div>
+        <div class="keys"><span><kbd>1</kbd> Stone</span><span><kbd>2</kbd> Paper</span><span><kbd>3</kbd> Scissors</span><span><kbd>Enter</kbd> Continue</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scrim" id="sheet-confirm" hidden data-sheet>
+    <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-text"></p>
+      <div class="sheet-actions">
+        <button class="btn2" type="button" data-act="close">Stay</button>
+        <button class="btn2 danger" type="button" id="confirm-yes" data-act="confirm"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="conn" id="conn" hidden role="status">Reconnecting…</div>
+  <div class="toast" id="toast" hidden role="status"></div>
+  <canvas id="confetti" hidden aria-hidden="true"></canvas>
+  <div id="live" class="sr-only" aria-live="polite"></div>
+</main>
+</body>
+</html>
