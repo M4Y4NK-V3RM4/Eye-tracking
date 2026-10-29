@@ -13,7 +13,7 @@
     "dev": "node --watch server/index.js",
     "test": "node --test test/*.test.js",
     "check": "node scripts/check.mjs && node --test test/*.test.js",
-    "e2e": "node e2e/multiplayer.mjs"
+    "e2e": "node e2e/multiplayer.mjs && node e2e/snakes.mjs && node e2e/duo.mjs"
   },
   "dependencies": {
     "qrcode-generator": "^1.5.2",

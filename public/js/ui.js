@@ -1,7 +1,7 @@
 // Drawing the game: card art, icons, sounds, and the table. Online and one-phone play both render
 // through these functions from a match-shaped object M:
 //   {seats, mode, bestOf, target, totalRounds, round, throwoff, throwoffFrom, picks, revealed, result,
-//    phase, queue, notes, winner, slotText?}
+//    phase, queue? (who is picking; every person when absent), notes, winner, slotText?}
 import { SHAPES, lc, verbOf, rnd, rint } from '/shared/rules.js';
 import { activeSeats } from '/shared/engine.js';
 import { isYou, namesList } from '/shared/words.js';
@@ -61,11 +61,10 @@ export function paintIcons(root = document){ $$('[data-icon]', root).forEach(n =
 
 // ---------- Screens, sheets, toasts ----------
 export let screen = 'home';
-const SCREENS = ['home', 'join', 'lobby', 'play', 'end'];
+const SCREENS = ['home', 'join', 'lobby', 'play', 'snakes', 'end'];
 export function show(name){
   screen = name;
   for (const s of SCREENS) $('#screen-' + s).hidden = s !== name;
-  if (name !== 'play') $('#handoff').hidden = true;
   if (name !== 'end') { confettiRun++; $('#confetti').hidden = true; }
 }
 let lastFocus = null;
@@ -185,8 +184,9 @@ export function renderSeats(M, flipOnly){
     if (shown && face.dataset.m !== String(m)) { face.innerHTML = faceHTML(m); face.dataset.m = m; }
     card.classList.toggle('is-empty', inPlay && !picked && !shown);
     card.classList.toggle('is-up', shown);
-    card.classList.toggle('is-turn', M.phase === 'pick' && M.queue[0] === p.id);
-    $('.slot span', card).textContent = M.slotText ? M.slotText(p) : (p.type === 'person' ? (M.phase === 'pick' && M.queue[0] === p.id ? 'Picking' : 'Waiting') : '');
+    const turn = M.phase === 'pick' && !picked && (M.queue ? M.queue.includes(p.id) : p.type === 'person');
+    card.classList.toggle('is-turn', turn);
+    $('.slot span', card).textContent = M.slotText ? M.slotText(p) : (p.type === 'person' ? (turn ? 'Picking' : 'Waiting') : '');
     s.classList.toggle('is-out', !inPlay);
     if (flipOnly) continue;
     let win = false, lose = false, b = '';
@@ -233,10 +233,11 @@ export function renderTop(M){
   renderSoundButton();
 }
 export function renderSoundButton(){
-  const b = $('#btn-sound');
-  b.innerHTML = prefs.sound ? ICON.soundOn : ICON.soundOff;
-  b.setAttribute('aria-pressed', prefs.sound);
-  b.setAttribute('aria-label', prefs.sound ? 'Sound is on' : 'Sound is off');
+  for (const b of $$('#btn-sound, .sound-btn')) {
+    b.innerHTML = prefs.sound ? ICON.soundOn : ICON.soundOff;
+    b.setAttribute('aria-pressed', prefs.sound);
+    b.setAttribute('aria-label', prefs.sound ? 'Sound is on' : 'Sound is off');
+  }
 }
 const nameOf = (M, id) => M.seats.find(p => p.id === id).name;
 const names = (M, ids) => namesList(ids.map(id => nameOf(M, id)));
@@ -271,6 +272,18 @@ export function renderBand(M, opts = {}){
 }
 export function picksHTML(enabled, chosen = null){
   return `<div class="picks${chosen != null ? ' has-chosen' : ''}">${SHAPES.map((s, m) => `<button type="button" class="pick${chosen === m ? ' chosen' : ''}" data-pick="${m}" ${enabled ? '' : 'disabled'} aria-pressed="${chosen === m}" aria-label="Throw ${s.toLowerCase()} (key ${m + 1})"><kbd>${m + 1}</kbd>${artSVG(m)}<span class="pname">${s}</span></button>`).join('')}</div>`;
+}
+// Two people, one phone: a column of buttons each, side by side, tapped at the same time. Once a
+// person has picked, their column says so without showing which shape, so nobody can copy it.
+const DUO_KEYS = [['A', 'S', 'D'], ['J', 'K', 'L']];
+export function duoHTML(people, locked = [], enabled = true){
+  return `<div class="duo">${people.map((p, i) => {
+    const done = locked.some(id => String(id) === String(p.id));
+    return `<div class="duo-col${done ? ' locked' : ''}" style="--seat:${p.color}">
+      <div class="duo-head">${avatarHTML('person', p.real || p.name, p.color, true)}<span class="duo-who"><b>${esc(p.name)}</b><span class="duo-state">${done ? 'Locked in' : 'Your pick'}</span></span></div>
+      ${SHAPES.map((sh, m) => `<button type="button" class="dpick" data-pick="${m}" data-who="${esc(p.id)}"${enabled ? '' : ' disabled'} aria-label="${esc(p.name)}: ${sh.toLowerCase()}"><kbd>${DUO_KEYS[i][m]}</kbd>${artSVG(m)}<span>${sh}</span></button>`).join('')}
+    </div>`;
+  }).join('')}</div>`;
 }
 export function trayHead(title, aside = ''){
   return `<div class="tray-head"><h3 class="tray-title">${esc(title)}</h3>${aside ? `<span class="tray-aside" id="tray-aside">${esc(aside)}</span>` : ''}</div>`;
@@ -390,6 +403,7 @@ export function renderEnd(M, opts){
   $('#btn-copy').textContent = 'Copy the result';
   $('#end-actions').innerHTML = opts.actionsHTML;
   $('#end-actions').classList.toggle('single', !!opts.single);
+  document.body.dataset.end = 'sps';
   paintIcons($('#end-actions'));
   if (screen !== 'end') { show('end'); window.scrollTo(0, 0); }
   else if (!opts.keepScroll) window.scrollTo(0, 0);

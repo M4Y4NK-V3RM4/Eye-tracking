@@ -31,8 +31,21 @@ export function localWinHTML(s, n){
   return `<h2 class="label" id="l-win">How to win</h2>${n === 2 ? duelControls(s, true) : groupControls(s, true)}<p class="hint">${esc(n === 2 ? duelHint(s) : groupHint(s, n))}</p>`;
 }
 
+const GAME_NAMES = {sps: 'Stone Paper Scissors', snakes: 'Snakes & Ladders'};
+const timerChips = s => `<div class="chips three" role="group" aria-label="Time to throw">${TIMERS.map(v => chip('timer', v, `${v} seconds`, s.timer === v, true)).join('')}</div>`;
 // Online: people may still join, so the host sets both, and sees which one applies now.
 export function onlineSettingsHTML(s, n, isHost, hostName){
+  const game = s.game || 'sps';
+  const picker = isHost ? `<h2 class="label">Game</h2>${seg('game', [['sps', 'Stone Paper Scissors'], ['snakes', 'Snakes & Ladders']], game, true)}` : `<h2 class="label">Game</h2><p class="ro"><b>${GAME_NAMES[game]}</b></p>`;
+  if (game === 'snakes') {
+    const rule = 'Everyone starts on 100 and races down to 0. Snakes slide you home; ladders send you back. Each turn, whoever wins the throw rolls two dice. First home wins.';
+    if (!isHost) return `${picker}<div class="ro"><p>${esc(rule)}</p><p class="hint">${s.timer} seconds to throw each turn. ${esc(hostName)} sets the rules.</p></div>`;
+    return `${picker}<p class="hint">${esc(rule)}</p>
+      <div class="field"><p class="hint"><b>Time to throw</b></p>${timerChips(s)}<p class="hint">Turns never wait: anyone too slow gets a random throw. You can throw your next one while the pieces are still moving.</p></div>`;
+  }
+  return picker + spsSettingsHTML(s, n, isHost, hostName);
+}
+function spsSettingsHTML(s, n, isHost, hostName){
   if (!isHost) {
     const rule = n <= 2 ? `<b>${bestOfLabel(s.bestOf)}.</b> ${esc(duelHint(s))}` : `<b>${s.mode === 'points' ? `Points, ${s.rounds} rounds` : 'Knockout'}.</b> ${esc(groupHint(s, n))}`;
     const timer = `${s.timer} seconds to throw each round. Too slow, and a random throw is made for you.`;

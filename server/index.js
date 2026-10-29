@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocketServer } from 'ws';
 import qrcode from 'qrcode-generator';
-import { Rooms, CODE_RE } from './rooms.js';
+import { Rooms, CODE_RE, GAME_IDS } from './rooms.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const TYPES = {
@@ -152,6 +152,7 @@ export function createServer(options = {}){
           if (!r) return fail('busy');
           const added = r.addPlayer(msg.name);
           if (added.error) { rooms.rooms.delete(r.code); return fail(added.error); }
+          if (GAME_IDS.includes(msg.game)) r.settings.game = msg.game;
           return bind(r, added.player);
         }
         if (!lookups.take(ip)) return fail('slow_down');

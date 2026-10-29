@@ -2,7 +2,24 @@
 // own phones, and everyone else who joins watches. Throws stay on the server until the reveal.
 import { randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { createMatch, playRound, nextRound, activeSeats, leaveMatch, seatOf } from '../shared/engine.js';
+import { createSnakes, playSnakes, nextSnakes, activeSnakes, leaveSnakes, turnMs } from '../shared/snakes.js';
 import { BEST_OF, ROUNDS, MODES, TIMERS, DEFAULT_TIMER, MAX_ONLINE, isMove, rint } from '../shared/rules.js';
+
+// Each game runs the same loop: everyone throws at once, the server reveals, the next throw opens.
+const GAMES = {
+  sps: {
+    create: createMatch, play: playRound, next: nextRound, active: activeSeats, leave: leaveMatch,
+    pause: (res, opts) => opts.resultPause,
+    seat: s => ({id: s.id, name: s.name, color: s.color, score: s.score, out: s.out, tOut: s.tOut, left: s.left, outRound: s.outRound})
+  },
+  snakes: {
+    create: createSnakes, play: playSnakes, next: nextSnakes, active: activeSnakes, leave: leaveSnakes,
+    // the next throw opens once the dice, the moves and the slides have played out on every phone
+    pause: (res, opts) => turnMs(res) + opts.snakesPause,
+    seat: s => ({id: s.id, name: s.name, color: s.color, pos: s.pos, wins: s.wins, snakes: s.snakes, ladders: s.ladders, left: s.left, out: false, tOut: false, score: 0})
+  }
+};
+export const GAME_IDS = Object.keys(GAMES);
 
 export const COLORS = ['#137eff', '#d54141', '#1a8f4a', '#c46a00', '#7a4fd6', '#0b7f86'];
 const CODE_LETTERS = 'BCDFGHJKLMNPQRSTVWXZ';   // no vowels, so codes never spell words; no I/O to misread
@@ -14,6 +31,7 @@ const DEFAULTS = {
   hostGrace: 30000,     // how long before an absent host hands over
   firstPause: 800,      // the first round's clock starts once the table is on screen
   resultPause: 1500,    // later rounds: a moment to see the last result first
+  snakesPause: 250,     // Snakes & Ladders: a beat after the last move, before the next throw's clock
   timerMs: null,        // tests only: overrides the room's seconds to throw
   emptyTtl: 15 * 60e3   // a room nobody is connected to is closed after this
 };
@@ -72,7 +90,7 @@ export class Room {
     this.opts = opts;
     this.players = new Map();          // id -> {id, token, name, color, role, connected, joinedAt, awaySince, conn}
     this.hostId = null;
-    this.settings = {bestOf: 5, mode: 'points', rounds: 5, timer: DEFAULT_TIMER};
+    this.settings = {game: 'sps', bestOf: 5, mode: 'points', rounds: 5, timer: DEFAULT_TIMER};
     this.phase = 'lobby';              // lobby | playing | over
     this.match = null;
     this.matchCount = 0;
@@ -82,6 +100,7 @@ export class Room {
     this.deadline = null;
     this.pickMs = 0;
     this.roundOpenedAt = 0;
+    this.notBefore = 0;                // no reveal before this: the last one is still playing out
     this.last = null;                  // the last revealed round
     this.notice = null;
     this.noticeCount = 0;
@@ -138,7 +157,7 @@ export class Room {
     p.conn = null; p.connected = false; p.awaySince = Date.now();
     if (!this.connectedCount()) this.emptySince = Date.now();
     // Rounds never wait: someone who drops off sits this round out, and can throw again once back.
-    if (this.phase === 'playing' && this.picks[pid] == null && activeSeats(this.match).some(s => s.id === pid)) {
+    if (this.phase === 'playing' && this.picks[pid] == null && this.E.active(this.match).some(s => s.id === pid)) {
       this.sitting.add(pid);
       this.checkReveal();
     }
@@ -158,7 +177,7 @@ export class Room {
     const p = this.players.get(pid);
     if (!p) return;
     if (this.match && !this.match.over && seatOf(this.match, pid)) {
-      leaveMatch(this.match, pid);
+      this.E.leave(this.match, pid);
       delete this.picks[pid]; this.sitting.delete(pid);
       if (this.match.over) this.finish();
     }
@@ -199,6 +218,7 @@ export class Room {
         if (!host) return 'host';
         if (this.phase === 'playing') return 'busy';
         const s = msg.settings || {};
+        if (GAME_IDS.includes(s.game)) this.settings.game = s.game;
         if (BEST_OF.includes(s.bestOf)) this.settings.bestOf = s.bestOf;
         if (MODES.includes(s.mode)) this.settings.mode = s.mode;
         if (ROUNDS.includes(s.rounds)) this.settings.rounds = s.rounds;
@@ -223,7 +243,7 @@ export class Room {
         break;
       case 'pick': {
         if (this.phase !== 'playing' || msg.round !== m.round || !isMove(msg.move)) return 'late';
-        if (!activeSeats(m).some(s => s.id === pid)) return 'not_playing';
+        if (!this.E.active(m).some(s => s.id === pid)) return 'not_playing';
         this.picks[pid] = msg.move; this.sitting.delete(pid); this.random.delete(pid);
         this.checkReveal();
         break;
@@ -235,7 +255,7 @@ export class Room {
       case 'skip': {
         if (!host) return 'host';
         if (this.phase !== 'playing' || msg.round !== m.round) return 'late';
-        for (const s of activeSeats(m)) if (this.picks[s.id] == null) this.sitting.add(s.id);
+        for (const s of this.E.active(m)) if (this.picks[s.id] == null) this.sitting.add(s.id);
         this.checkReveal();
         break;
       }
@@ -259,7 +279,9 @@ export class Room {
     this.fillSeats();
     const seats = this.playersIn('player').filter(p => p.connected);
     if (seats.length < 2) return 'not_enough';
-    this.match = createMatch({seats: seats.map(p => ({id: p.id, name: p.name, color: p.color})), ...this.settings, id: ++this.matchCount});
+    this.E = GAMES[this.settings.game];
+    this.match = this.E.create({seats: seats.map(p => ({id: p.id, name: p.name, color: p.color})), ...this.settings, id: ++this.matchCount});
+    this.match.game = this.settings.game;
     this.phase = 'playing';
     this.last = null;
     this.openRound(this.opts.firstPause);
@@ -270,9 +292,10 @@ export class Room {
   // everyone has thrown, or when time is up.
   openRound(pause){
     this.picks = {}; this.random = new Set(); this.sitting = new Set();
-    for (const s of activeSeats(this.match)) if (!this.players.get(s.id)?.connected) this.sitting.add(s.id);
+    for (const s of this.E.active(this.match)) if (!this.players.get(s.id)?.connected) this.sitting.add(s.id);
     const now = Date.now();
     this.roundOpenedAt = now;
+    this.notBefore = now + pause;
     this.pickMs = this.opts.timerMs ?? this.settings.timer * 1000;
     this.deadline = now + pause + this.pickMs;
     const round = this.match.round;
@@ -280,7 +303,7 @@ export class Room {
   }
   timeUp(round){
     if (this.phase !== 'playing' || this.match.round !== round) return;
-    for (const s of activeSeats(this.match)) {
+    for (const s of this.E.active(this.match)) {
       if (this.picks[s.id] != null || this.sitting.has(s.id)) continue;
       if (this.players.get(s.id)?.connected) { this.picks[s.id] = rint(3); this.random.add(s.id); }
       else this.sitting.add(s.id);
@@ -290,29 +313,35 @@ export class Room {
   }
   pending(){
     if (this.phase !== 'playing') return [];
-    return activeSeats(this.match).filter(s => this.picks[s.id] == null && !this.sitting.has(s.id));
+    return this.E.active(this.match).filter(s => this.picks[s.id] == null && !this.sitting.has(s.id));
   }
   // Too few people here to throw this round: wait for someone to come back, or for the host to end it.
   waiting(){
     if (this.phase !== 'playing' || this.pending().length) return false;
-    return activeSeats(this.match).filter(s => this.picks[s.id] != null && !this.sitting.has(s.id)).length < 2;
+    return this.E.active(this.match).filter(s => this.picks[s.id] != null && !this.sitting.has(s.id)).length < 2;
   }
   checkReveal(){
     if (this.phase !== 'playing' || this.pending().length || this.waiting()) return;
+    // Everyone threw while the last result was still playing out: reveal the moment it ends.
+    const wait = this.notBefore - Date.now();
+    if (wait > 0) {
+      this.setTimer('reveal', wait, () => { this.checkReveal(); this.broadcast(); });
+      return;
+    }
     const m = this.match;
-    const res = playRound(m, this.picks, [...this.sitting]);
+    const res = this.E.play(m, this.picks, [...this.sitting]);
     if (!res) return;
     res.random = [...this.random];
     this.last = res;
     if (m.over) this.finish();
-    else { nextRound(m); this.openRound(this.opts.resultPause); }
+    else { this.E.next(m); this.openRound(this.E.pause(res, this.opts)); }
   }
   finish(){
     this.clearRoundTimers();
     this.phase = 'over';
     this.deadline = null;
   }
-  clearRoundTimers(){ this.clearTimer('deadline'); this.picks = {}; this.sitting = new Set(); this.random = new Set(); }
+  clearRoundTimers(){ this.clearTimer('deadline'); this.clearTimer('reveal'); this.picks = {}; this.sitting = new Set(); this.random = new Set(); }
 
   // ----- what each phone sees -----
   view(pid){
@@ -324,11 +353,11 @@ export class Room {
       match: null
     };
     if (m) {
-      const act = activeSeats(m);
+      const act = this.E.active(m);
       v.match = {
-        id: m.id, mode: m.mode, bestOf: m.bestOf, target: m.target, totalRounds: m.totalRounds, round: m.round,
+        id: m.id, game: m.game, mode: m.mode, bestOf: m.bestOf, target: m.target, totalRounds: m.totalRounds, round: m.round,
         throwoff: m.throwoff, throwoffFrom: m.throwoffFrom, over: m.over, winner: m.winner,
-        seats: m.seats.map(s => ({id: s.id, name: s.name, color: s.color, score: s.score, out: s.out, tOut: s.tOut, left: s.left, outRound: s.outRound})),
+        seats: m.seats.map(this.E.seat),
         locked: act.filter(s => this.picks[s.id] != null).map(s => s.id),
         sitting: [...this.sitting],
         myPick: this.picks[pid] ?? null,
@@ -336,6 +365,7 @@ export class Room {
         deadline: this.deadline,
         pickMs: this.pickMs,
         openedAt: this.roundOpenedAt,
+        notBefore: this.notBefore,
         waiting: this.waiting(),
         last: this.last,
         history: m.over ? Object.fromEntries(m.seats.map(s => [s.id, {moves: s.moves, results: s.results}])) : null
@@ -349,7 +379,7 @@ export class Room {
   }
   summary(){
     const host = this.players.get(this.hostId);
-    return {code: this.code, host: host ? host.name : null, players: this.playersIn('player').length, phase: this.phase, full: this.players.size >= MAX_PEOPLE};
+    return {code: this.code, game: this.settings.game, host: host ? host.name : null, players: this.playersIn('player').length, phase: this.phase, full: this.players.size >= MAX_PEOPLE};
   }
 
   // ----- timers -----
